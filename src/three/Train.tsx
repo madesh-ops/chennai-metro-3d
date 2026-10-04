@@ -82,6 +82,7 @@ export function TrainPoseDriver({ getMotion }: { getMotion: () => TrainMotion })
 interface TrainMaterials {
   body: MeshStandardMaterial;
   dark: MeshStandardMaterial;
+  under: MeshStandardMaterial;
   glass: MeshStandardMaterial;
   windshield: MeshStandardMaterial;
   stripe: MeshStandardMaterial;
@@ -105,8 +106,10 @@ function useTrainMaterials(lineColour: string, destination: string): TrainMateri
         ...extra,
       });
     return {
-      body: new MeshStandardMaterial({ color: "#e7ebef", metalness: 0.28, roughness: 0.36 }),
-      dark: new MeshStandardMaterial({ color: "#23272d", roughness: 0.78, metalness: 0.2 }),
+      // Livery comes from vertex colours (trainModel.ts paintBody / trainNose.ts).
+      body: new MeshStandardMaterial({ color: "#ffffff", vertexColors: true, metalness: 0.15, roughness: 0.3 }),
+      dark: new MeshStandardMaterial({ color: "#23272d", roughness: 0.6, metalness: 0.2 }),
+      under: new MeshStandardMaterial({ color: "#5d636b", roughness: 0.7, metalness: 0.3 }),
       glass: new MeshStandardMaterial({
         color: "#0c1620",
         metalness: 0.45,
@@ -117,9 +120,9 @@ function useTrainMaterials(lineColour: string, destination: string): TrainMateri
         side: DoubleSide,
       }),
       windshield: new MeshStandardMaterial({
-        color: "#0a121b",
-        metalness: 0.6,
-        roughness: 0.12,
+        color: "#26384a",
+        metalness: 0.5,
+        roughness: 0.08,
         transparent: true,
         opacity: 0.9,
         depthWrite: false,
@@ -132,7 +135,7 @@ function useTrainMaterials(lineColour: string, destination: string): TrainMateri
       lights: new MeshBasicMaterial({ color: "#fff4df", toneMapped: false }),
       head: new MeshBasicMaterial({ color: "#fffbea", toneMapped: false }),
       tail: new MeshBasicMaterial({ color: "#ff2b2b", toneMapped: false }),
-      door: new MeshStandardMaterial({ color: "#dde2e7", metalness: 0.3, roughness: 0.38 }),
+      door: new MeshStandardMaterial({ color: "#ffffff", vertexColors: true, metalness: 0.15, roughness: 0.34 }),
       destination: new MeshBasicMaterial({ toneMapped: false }),
     };
   }, [lineColour]);
@@ -205,7 +208,9 @@ function Car({
       geo.leaves.forEach((leaf, i) => {
         const open = leaf.side === platformSide ? door : 0;
         _p.set(leaf.x + leaf.slide * 0.7 * open, 0, leaf.side * (TRAIN.width / 2 + 0.03 + 0.04 * Math.min(1, open * 4)));
-        _q.identity();
+        // Leaf geometry faces +z (outside); turn the left-side leaves round.
+        if (leaf.side > 0) _q.identity();
+        else _q.setFromAxisAngle(UP, Math.PI);
         _m.compose(_p, _q, _s);
         leaves.current!.setMatrixAt(i, _m);
       });
@@ -241,6 +246,7 @@ function Car({
     <group ref={group}>
       <mesh geometry={geo.body} material={mats.body} castShadow receiveShadow />
       <mesh geometry={geo.dark} material={mats.dark} castShadow />
+      <mesh geometry={geo.under} material={mats.under} castShadow />
       <mesh geometry={geo.stripe} material={mats.stripe} />
       <mesh geometry={geo.steel} material={mats.steel} />
       <mesh geometry={geo.seats} material={mats.seats} />
@@ -269,7 +275,7 @@ function Car({
       {leading && (
         <>
           <primitive object={beamTarget} />
-          <spotLight ref={beam} position={[11.2, 1.4, 0]} angle={0.42} penumbra={0.6} distance={180} decay={1.6} intensity={0} color="#fff6e0" />
+          <spotLight ref={beam} position={geo.beam ?? [11.2, 1.5, 0]} angle={0.42} penumbra={0.6} distance={180} decay={1.6} intensity={0} color="#fff6e0" />
         </>
       )}
     </group>

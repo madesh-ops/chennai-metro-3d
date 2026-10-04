@@ -1,20 +1,15 @@
-import {
-  BoxGeometry,
-  BufferGeometry,
-  CylinderGeometry,
-  ExtrudeGeometry,
-  PlaneGeometry,
-  Shape,
-} from "three";
+import { BoxGeometry, BufferAttribute, BufferGeometry, Color, CylinderGeometry, ExtrudeGeometry, Shape, Vector3 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { TRAIN } from "./layout.ts";
+import { buildNose, NOSE_DEPTH } from "./trainNose.ts";
 
 /**
  * Procedural metro car, built in car-local space:
  * +x = front of the car, +y = up from rail top, +z = right side.
  *
  * Dimensions follow the published Phase II trainset (3 cars, 67.8 m) with
- * assumed width/height (see tracks.json). Livery is stylised.
+ * assumed width/height (see tracks.json). Livery after a photo of a CMRL
+ * Alstom Metropolis: blue cab and cantrail band, dark-green sides.
  * Side walls are assembled from panels around real window and door
  * openings so the passenger and driver cameras can see out.
  */
@@ -25,6 +20,8 @@ export interface CarGeometry {
   kind: CarKind;
   body: BufferGeometry;
   dark: BufferGeometry;
+  /** Grey underframe equipment and roof units. */
+  under: BufferGeometry;
   glass: BufferGeometry;
   stripe: BufferGeometry;
   steel: BufferGeometry;
@@ -37,6 +34,8 @@ export interface CarGeometry {
   /** Cab nose shell (hidden from the driver's seat). */
   nose: BufferGeometry | null;
   windshield: BufferGeometry | null;
+  /** Head-light beam origin (cab cars). */
+  beam: [number, number, number] | null;
   doorLeaf: BufferGeometry;
   doorGlass: BufferGeometry;
   /** Closed-door leaf centres: x, side (+1 right / -1 left), slide direction. */
@@ -48,8 +47,8 @@ export interface CarGeometry {
 const HALF = TRAIN.carLength / 2;
 const W = TRAIN.width / 2;
 const PANEL_IN = W - 0.07;
-const WINDOW_BOTTOM = 1.95;
-const WINDOW_TOP = 2.95;
+const WINDOW_BOTTOM = 1.9;
+const WINDOW_TOP = 3.0;
 const BAND_TOP = 3.28;
 const DOOR_TOP = 3.05;
 const DOOR_HALF = 0.72;
@@ -73,7 +72,7 @@ function merge(parts: BufferGeometry[]): BufferGeometry {
   const clean = parts.map((g) => {
     const n = g.index ? g.toNonIndexed() : g;
     for (const name of Object.keys(n.attributes)) {
-      if (name !== "position" && name !== "normal" && name !== "uv") n.deleteAttribute(name);
+      if (name !== "position" && name !== "normal") n.deleteAttribute(name);
     }
     return n;
   });
@@ -92,6 +91,81 @@ function intervalsWithout(x0: number, x1: number, holes: number[], half: number)
   }
   if (a < x1) out.push([a, x1]);
   return out;
+}
+
+/** Big windows in a bay between doors: one in a short bay, two (with a pier) in a long one. */
+function bayWindows(a: number, b: number): [number, number][] {
+  const span = b - a;
+  const m = 0.3;
+  if (span < 1.3) return [];
+  if (span < 2.8) return [[a + m, b - m]];
+  const w = (span - 2 * m - 0.5) / 2;
+  return [
+    [a + m, a + m + w],
+    [b - m - w, b - m],
+  ];
+}
+
+export const LIVERY = {
+  green: "#2e5a47",
+  doorGreen: "#24493b",
+  blue: "#2864ec",
+  roof: "#8b9198",
+  lining: "#e7ebef",
+  rubber: "#2a2f35",
+};
+
+/**
+ * Vertex colours for the car body from each triangle's facing: outside
+ * faces green, the cantrail band blue, the roof grey, window and door
+ * reveals black rubber, and everything facing into the saloon light grey.
+ */
+function paintBody(g: BufferGeometry): BufferGeometry {
+  const pos = g.getAttribute("position");
+  const nor = g.getAttribute("normal");
+  const col = new Float32Array(pos.count * 3);
+  const C = Object.fromEntries(Object.entries(LIVERY).map(([k, v]) => [k, new Color(v)])) as Record<keyof typeof LIVERY, Color>;
+  const c = new Vector3();
+  const n = new Vector3();
+  const v = new Vector3();
+  for (let i = 0; i < pos.count; i += 3) {
+    c.set(0, 0, 0);
+    n.set(0, 0, 0);
+    let minY = Infinity;
+    for (let k = 0; k < 3; k++) {
+      c.add(v.fromBufferAttribute(pos, i + k));
+      minY = Math.min(minY, v.y);
+      n.add(v.fromBufferAttribute(nor, i + k));
+    }
+    c.divideScalar(3);
+    n.normalize();
+    let colour: Color;
+    if (minY >= 3.18 - 1e-3) {
+      // Roof: blue cantrail band, grey top, light ceiling side.
+      colour = n.y < -0.5 ? C.lining : c.y < 3.62 ? C.blue : C.roof;
+    } else if (Math.abs(n.z) > 0.5) {
+      colour = Math.abs(c.z) > PANEL_IN - 0.01 && n.z * c.z > 0 ? C.green : C.lining;
+    } else if (Math.abs(n.x) > 0.5) {
+      // Car ends: outside green, inside light; elsewhere window and door reveals.
+      colour = Math.abs(c.x) > HALF - 0.12 ? (n.x * c.x > 0 ? C.green : C.lining) : C.rubber;
+    } else {
+      colour = c.y < 1.0 ? C.green : Math.abs(c.z) > PANEL_IN - 0.01 ? C.rubber : C.lining;
+    }
+    for (let k = 0; k < 3; k++) colour.toArray(col, (i + k) * 3);
+  }
+  g.setAttribute("color", new BufferAttribute(col, 3));
+  return g;
+}
+
+function paintLeaf(g: BufferGeometry): BufferGeometry {
+  const nor = g.getAttribute("normal");
+  const out = new Color(LIVERY.doorGreen);
+  const inner = new Color(LIVERY.lining);
+  const edge = new Color(LIVERY.rubber);
+  const col = new Float32Array(nor.count * 3);
+  for (let i = 0; i < nor.count; i++) (nor.getZ(i) > 0.5 ? out : nor.getZ(i) < -0.5 ? inner : edge).toArray(col, i * 3);
+  g.setAttribute("color", new BufferAttribute(col, 3));
+  return g;
 }
 
 const carDoors = (kind: CarKind) => (kind === "DMC" ? [-8.6, -3.2, 2.2, 7.3] : [-8.55, -2.85, 2.85, 8.55]);
@@ -165,18 +239,21 @@ export function buildCar(kind: CarKind): CarGeometry {
     for (const [a, b] of intervalsWithout(xRear, xFront, doors, DOOR_HALF)) {
       body.push(box(a, b, 0.95, WINDOW_BOTTOM, za, zb));
       body.push(box(a, b, WINDOW_TOP, BAND_TOP, za, zb));
-      // Window pillars and glass.
-      const n = Math.max(1, Math.round((b - a) / 1.9));
-      const span = (b - a) / n;
-      for (let k = 0; k <= n; k++) {
-        const px = a + span * k;
-        const p0 = Math.max(a, px - 0.11);
-        const p1 = Math.min(b, px + 0.11);
-        body.push(box(p0, p1, WINDOW_BOTTOM, WINDOW_TOP, za, zb));
-        if (k < n) glass.push(box(px + 0.11, px + span - 0.11, WINDOW_BOTTOM, WINDOW_TOP, s * (W - 0.05), s * (W - 0.02)));
+      // Large windows with black surrounds; green piers between them.
+      let px = a;
+      const fo = s * (W + 0.012);
+      const fi = s * (W - 0.004);
+      const [f0, f1] = s < 0 ? [fo, fi] : [fi, fo];
+      for (const [w0, w1] of bayWindows(a, b)) {
+        if (w0 > px) body.push(box(px, w0, WINDOW_BOTTOM, WINDOW_TOP, za, zb));
+        glass.push(box(w0, w1, WINDOW_BOTTOM, WINDOW_TOP, s * (W - 0.05), s * (W - 0.02)));
+        dark.push(box(w0 - 0.05, w1 + 0.05, WINDOW_BOTTOM - 0.05, WINDOW_BOTTOM + 0.03, f0, f1));
+        dark.push(box(w0 - 0.05, w1 + 0.05, WINDOW_TOP - 0.03, WINDOW_TOP + 0.05, f0, f1));
+        dark.push(box(w0 - 0.05, w0 + 0.03, WINDOW_BOTTOM + 0.03, WINDOW_TOP - 0.03, f0, f1));
+        dark.push(box(w1 - 0.03, w1 + 0.05, WINDOW_BOTTOM + 0.03, WINDOW_TOP - 0.03, f0, f1));
+        px = w1;
       }
-      stripe.push(box(a, b, 1.3, 1.42, s * (W + 0.006), s * (W - 0.01)));
-      stripe.push(box(a, b, 3.1, 3.16, s * (W + 0.006), s * (W - 0.01)));
+      if (px < b) body.push(box(px, b, WINDOW_BOTTOM, WINDOW_TOP, za, zb));
       // Longitudinal bench seats inside.
       if (b - a > 1.4) {
         const sx0 = a + 0.25;
@@ -222,10 +299,11 @@ export function buildCar(kind: CarKind): CarGeometry {
   // Floor, underframe, ceiling.
   const floor = box(xRear + 0.05, xFront, 1.05, 1.13, -PANEL_IN, PANEL_IN);
   const ceiling = box(xRear + 0.05, xFront, 3.16, 3.2, -PANEL_IN, PANEL_IN);
-  dark.push(box(xRear + 0.4, xFront - 0.2, 0.74, 1.05, -W + 0.12, W - 0.12));
-  for (const ex of [-3.2, 0.2, 3.4]) dark.push(box(ex - 1.1, ex + 1.1, 0.42, 0.74, -0.95, 0.95));
+  const under: BufferGeometry[] = [];
+  under.push(box(xRear + 0.4, xFront - 0.2, 0.74, 1.05, -W + 0.12, W - 0.12));
+  for (const ex of [-3.2, 0.2, 3.4]) under.push(box(ex - 1.1, ex + 1.1, 0.42, 0.74, -0.95, 0.95));
   // Roof-mounted air conditioning units.
-  for (const ax of [-5.4, 4.6]) dark.push(box(ax - 1.4, ax + 1.4, 3.72, 4.02, -0.85, 0.85));
+  for (const ax of [-5.4, 4.6]) under.push(box(ax - 1.4, ax + 1.4, 3.72, 4.02, -0.85, 0.85));
 
   // Rear end wall with open gangway, plus half of the bellows.
   const endWall = (x: number, dir: 1 | -1) => {
@@ -236,10 +314,10 @@ export function buildCar(kind: CarKind): CarGeometry {
     body.push(box(x0, x1, 3.0, BAND_TOP, -0.64, 0.64));
     const g0 = dir > 0 ? x : x - 0.3;
     const g1 = dir > 0 ? x + 0.3 : x;
-    dark.push(box(g0, g1, 1.08, 3.08, -0.74, -0.64));
-    dark.push(box(g0, g1, 1.08, 3.08, 0.64, 0.74));
-    dark.push(box(g0, g1, 3.0, 3.08, -0.74, 0.74));
-    dark.push(box(g0, g1, 1.05, 1.13, -0.74, 0.74));
+    dark.push(box(g0, g1, 1.0, 3.14, -0.82, -0.64));
+    dark.push(box(g0, g1, 1.0, 3.14, 0.64, 0.82));
+    dark.push(box(g0, g1, 3.0, 3.14, -0.82, 0.82));
+    dark.push(box(g0, g1, 1.0, 1.13, -0.82, 0.82));
   };
   endWall(xRear, -1);
   if (!isCab) endWall(xFront, 1);
@@ -254,76 +332,15 @@ export function buildCar(kind: CarKind): CarGeometry {
   let destination: BufferGeometry | null = null;
   let noseOut: BufferGeometry | null = null;
   let windshield: BufferGeometry | null = null;
+  let beam: [number, number, number] | null = null;
   if (isCab) {
-    // Nose: side profile extruded across the width with rounded edges.
-    const nose = new Shape();
-    const bevel = 0.09;
-    const profile: [number, number][] = [
-      [0, 0.95 + bevel],
-      [CAB - 0.3, 0.95 + bevel],
-      [CAB - bevel, 1.2],
-      [CAB - bevel, 1.86],
-      [CAB - 0.48, 3.02],
-      [CAB - 1.0, 3.7],
-      [0, TRAIN.roof - bevel],
-    ];
-    nose.moveTo(profile[0][0], profile[0][1]);
-    for (const [x, y] of profile.slice(1)) nose.lineTo(x, y);
-    nose.closePath();
-    const noseGeo = new ExtrudeGeometry(nose, {
-      depth: TRAIN.width - bevel * 2,
-      bevelEnabled: true,
-      bevelThickness: bevel,
-      bevelSize: bevel,
-      bevelSegments: 3,
-      steps: 1,
-    });
-    noseGeo.translate(xFront, 0, -(W - bevel));
-    noseOut = merge([noseGeo]);
-
-    // Windshield on the sloped face.
-    const wx0 = CAB - bevel;
-    const wy0 = 1.9;
-    const wx1 = CAB - 0.46;
-    const wy1 = 3.0;
-    const len = Math.hypot(wx1 - wx0, wy1 - wy0);
-    const theta = Math.atan2(wx0 - wx1, wy1 - wy0);
-    const nx = Math.cos(theta);
-    const ny = Math.sin(theta);
-    const mx = xFront + (wx0 + wx1) / 2 + nx * (bevel + 0.02);
-    const my = (wy0 + wy1) / 2 + ny * (bevel + 0.02);
-    const shield = new BoxGeometry(0.03, len * 0.94, 2.36);
-    shield.rotateZ(theta);
-    shield.translate(mx, my, 0);
-    windshield = merge([shield]);
-    // Cab frame visible from the driver's seat: pillars, console, header.
-    for (const s of [-1, 1]) {
-      const pillar = new BoxGeometry(0.08, len, 0.16);
-      pillar.rotateZ(theta);
-      pillar.translate(mx - nx * 0.06, my - ny * 0.06, s * 1.22);
-      dark.push(pillar.toNonIndexed());
-    }
-    dark.push(box(xFront + 0.9, xFront + CAB - 0.25, 1.13, 1.82, -1.3, 1.3));
-    dark.push(box(xFront - 0.2, xFront + CAB - 0.7, 3.42, 3.5, -1.3, 1.3));
-    // Front stripe and coupler.
-    stripe.push(box(xFront + CAB - 0.02, xFront + CAB + 0.02, 1.62, 1.74, -1.15, 1.15));
-    dark.push(box(xFront + CAB - 0.1, xFront + CAB + 0.25, 0.62, 0.86, -0.35, 0.35));
-
-    const head: BufferGeometry[] = [];
-    for (const s of [-1, 1]) head.push(box(xFront + CAB - 0.03, xFront + CAB + 0.015, 1.32, 1.48, s * 1.16, s * 0.72));
-    headlights = merge(head);
-
-    // Destination display behind the top of the windshield.
-    const dest = new PlaneGeometry(1.5, 0.24);
-    dest.rotateY(Math.PI / 2);
-    dest.rotateZ(theta);
-    const dt = 0.86;
-    dest.translate(
-      xFront + wx0 + (wx1 - wx0) * dt + nx * (bevel + 0.04),
-      wy0 + (wy1 - wy0) * dt + ny * (bevel + 0.04),
-      0,
-    );
-    destination = dest.toNonIndexed();
+    const nose = buildNose(xFront);
+    noseOut = nose.shell;
+    windshield = nose.glass;
+    destination = nose.destination;
+    headlights = nose.lamps;
+    beam = nose.beam;
+    dark.push(nose.frame);
   }
 
   // Bogies and wheels.
@@ -341,21 +358,28 @@ export function buildCar(kind: CarKind): CarGeometry {
       leaves.push({ x: dx + DOOR_HALF / 2, side: s, slide: 1 });
     }
   }
-  const leafBody = merge([
-    box(-DOOR_HALF / 2, DOOR_HALF / 2, 1.08, 1.98, -0.025, 0.025),
-    box(-DOOR_HALF / 2, DOOR_HALF / 2, 2.9, DOOR_TOP, -0.025, 0.025),
-    box(-DOOR_HALF / 2, -DOOR_HALF / 2 + 0.08, 1.98, 2.9, -0.025, 0.025),
-    box(DOOR_HALF / 2 - 0.08, DOOR_HALF / 2, 1.98, 2.9, -0.025, 0.025),
-  ]);
-  const leafGlass = merge([box(-DOOR_HALF / 2 + 0.08, DOOR_HALF / 2 - 0.08, 1.98, 2.9, -0.012, 0.012)]);
+  // Leaves are drawn with local +z facing out (Train turns the left-side ones round):
+  // dark green outside, light grey inside, a tall narrow window.
+  const LH = DOOR_HALF / 2;
+  const LW = 0.17;
+  const leafBody = paintLeaf(
+    merge([
+      box(-LH, LH, 1.08, 1.72, -0.025, 0.025),
+      box(-LH, LH, 2.9, DOOR_TOP, -0.025, 0.025),
+      box(-LH, -LW, 1.72, 2.9, -0.025, 0.025),
+      box(LW, LH, 1.72, 2.9, -0.025, 0.025),
+    ]),
+  );
+  const leafGlass = merge([box(-LW, LW, 1.72, 2.9, -0.012, 0.012)]);
 
   const wheel = new CylinderGeometry(0.42, 0.42, 0.1, 14);
   wheel.rotateX(Math.PI / 2);
 
   return {
     kind,
-    body: merge(body),
+    body: paintBody(merge(body)),
     dark: merge(dark),
+    under: merge(under),
     glass: merge(glass),
     stripe: merge(stripe),
     steel: merge(steel),
@@ -367,6 +391,7 @@ export function buildCar(kind: CarKind): CarGeometry {
     destination,
     nose: noseOut,
     windshield,
+    beam,
     doorLeaf: leafBody,
     doorGlass: leafGlass,
     leaves,
@@ -378,6 +403,6 @@ export function buildCar(kind: CarKind): CarGeometry {
 /** Distance from car centre to the front bogie pivot. */
 export const BOGIE_OFFSET = HALF - 3.1;
 /** Distance from the leading car centre to the nose tip. */
-export const NOSE_TIP = HALF + 0.09;
+export const NOSE_TIP = HALF - CAB + NOSE_DEPTH;
 /** Where the driver's eyes are, in car-local coordinates of the leading DMC. */
 export const DRIVER_EYE = { x: HALF - CAB + 1.05, y: 2.78, z: -0.35 };
