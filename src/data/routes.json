@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "lastVerified": "2026-10-03",
+    "sources": {
+      "wiki-line4": "Wikipedia — 'Yellow Line (Chennai Metro)' (Line 4, 26.1 km Lighthouse–Poonamallee Bypass; colour changed from Orange to Yellow in 2025)",
+      "dtnext-cmrs": "DT Next — CMRS authorises commissioning of the 14.6 km Poonamallee Bypass–Porur Junction–Vadapalani stretch",
+      "swarajya-opening": "Swarajya — 'Prime Minister Modi set to inaugurate 14.6 km Poonamallee–Vadapalani metro corridor on 11 October'",
+      "nativeplanet-opening": "NativePlanet — 14.64 km stretch opens 11 October; 15 trains at 10-minute intervals; fares Rs 10–40; about 30 minutes end to end",
+      "dtnext-fares": "DT Next — fares fixed at Rs 10–Rs 40 (Sep 2026)"
+    }
+  },
+  "lines": [
+    {
+      "id": "line-4",
+      "name": "Line 4",
+      "corridor": "Corridor 4",
+      "colourName": "Yellow Line",
+      "colour": "#F2B705",
+      "colourNote": "Line 4's colour was changed from Orange to Yellow in 2025 (wiki-line4). CMRL has not published an official hex value; #F2B705 is an approximation.",
+      "lengthKm": 26.1,
+      "termini": [
+        "Lighthouse",
+        "Poonamallee Bypass"
+      ],
+      "status": "Partially open. Lighthouse–Vadapalani (Kodambakkam Power House section and the underground core) is under construction.",
+      "source": "wiki-line4"
+    },
+    {
+      "id": "line-2",
+      "name": "Line 2",
+      "colourName": "Green Line",
+      "colour": "#3FA34D",
+      "colourNote": "Approximate rendering colour.",
+      "status": "Open. Interchange with Line 4 at Vadapalani."
+    },
+    {
+      "id": "line-5",
+      "name": "Line 5",
+      "corridor": "Corridor 5",
+      "colourName": "Red Line",
+      "colour": "#D7262E",
+      "colourNote": "Approximate rendering colour.",
+      "lengthKm": 47,
+      "termini": [
+        "Madhavaram Milk Colony",
+        "Sholinganallur"
+      ],
+      "status": "Under construction. Shares the Arcot Road double-decker with Line 4 (upper deck) between Alapakkam and Alwarthirunagar.",
+      "source": "Wikipedia — Red Line (Chennai Metro)"
+    }
+  ],
+  "routes": [
+    {
+      "id": "line-4-poonamallee-vadapalani",
+      "line": "line-4",
+      "name": "Corridor 4",
+      "title": "Poonamallee Bypass — Vadapalani",
+      "stationIds": [
+        "poonamallee-bypass",
+        "poonamallee",
+        "mullaithottam",
+        "karayanchavadi",
+        "kumananchavadi",
+        "kattupakkam",
+        "iyyappanthangal",
+        "thelliyaragaram",
+        "porur-bypass",
+        "porur-junction",
+        "alapakkam",
+        "karambakkam",
+        "valasaravakkam",
+        "alwarthirunagar",
+        "saligramam",
+        "avichi-school",
+        "vadapalani"
+      ],
+      "lengthKm": 14.64,
+      "lengthSource": "nativeplanet-opening",
+      "status": "cmrs-approved",
+      "statusLabel": "CMRS-approved · opening scheduled 11 Oct 2026",
+      "openingDate": "2026-10-11",
+      "openingSource": "swarajya-opening",
+      "servedStationCount": 11,
+      "passedStationCount": 6,
+      "headwayMinutes": 10,
+      "trainsInService": 15,
+      "operatingHours": "05:00–23:00 (reported plan)",
+      "reportedJourneyMinutes": 30,
+      "fares": {
+        "currency": "INR",
+        "min": 10,
+        "max": 40,
+        "examples": [
+          {
+            "from": "poonamallee-bypass",
+            "to": "poonamallee",
+            "fare": 10
+          },
+          {
+            "from": "poonamallee-bypass",
+            "to": "vadapalani",
+            "fare": 40
+          }
+        ],
+        "note": "Intermediate fares (Rs 20–30) were reported by distance band; CMRL is to publish the full chart after inauguration.",
+        "source": "dtnext-fares"
+      }
+    }
+  ]
+}

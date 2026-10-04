@@ -1,0 +1,270 @@
+{
+  "meta": {
+    "lastVerified": "2026-10-04",
+    "note": "Landmarks with a 'model' are drawn as stylised 3D models at 'position'; the rest is context for station pages. Only public places are named; shops and businesses in the scene use invented names. positionQuality 'approximate' means the exact footprint or side of the road is not published."
+  },
+  "landmarks": [
+    {
+      "id": "poonamallee-depot",
+      "name": "Poonamallee Depot",
+      "nameTa": "பூந்தமல்லி மெட்ரோ பணிமனை",
+      "nameTaVerified": false,
+      "kind": "depot",
+      "nearStation": "poonamallee-bypass",
+      "description": "Phase II rolling-stock depot (DPT-01). Trial runs of the Alstom trains began from here in March 2025.",
+      "source": "The Metro Rail Guy — 'Chennai Metro Phase 2's Trial Runs Begin from Poonamallee Depot' (Mar 2025)",
+      "model": {
+        "type": "depot",
+        "along": 300,
+        "depth": 140
+      },
+      "position": {
+        "station": "poonamallee-bypass",
+        "alongM": -40,
+        "side": "north",
+        "offsetM": 110
+      },
+      "positionQuality": "approximate",
+      "positionSource": "Wikipedia — Poonamallee Bypass metro station (depot beside the station, 24 tracks). Footprint and side not published."
+    },
+    {
+      "id": "poonamallee-bus-stand",
+      "name": "Poonamallee Bus Stand",
+      "nameTa": "பூந்தமல்லி பேருந்து நிலையம்",
+      "nameTaVerified": false,
+      "kind": "transport",
+      "nearStation": "poonamallee",
+      "description": "Poonamallee station is listed as Poonamallee Bus Stand in CMRL's fare announcement. The MTC terminus serves more than 30 routes, including Vellore, Kanchipuram and Tirupati.",
+      "source": "DT Next — fares article (Sep 2026); Goibibo — Poonamallee Bus Stand",
+      "model": {
+        "type": "bus-stand",
+        "along": 90,
+        "depth": 60
+      },
+      "position": {
+        "lat": 13.05086,
+        "lon": 80.09371,
+        "side": "north"
+      },
+      "positionQuality": "approximate",
+      "positionSource": "TellMyRoute — MTC GTFS stop 'Poonamallee Bus Terminus' (13.05086, 80.09371). A stop point, not the terminus outline."
+    },
+    {
+      "id": "poonamallee-varadaraja-temple",
+      "name": "Sri Varadaraja Perumal Temple",
+      "nameTa": "பூந்தமல்லி வரதராஜப் பெருமாள் கோயில்",
+      "nameTaVerified": true,
+      "kind": "temple",
+      "nearStation": "poonamallee",
+      "description": "Vaishnavite temple in Poonamallee, associated with the saint Thirukachi Nambi, who was born here.",
+      "source": "Wikipedia — Varadaraja Perumal Temple, Poonamallee",
+      "model": {
+        "type": "temple",
+        "along": 60,
+        "depth": 80,
+        "height": 22
+      },
+      "position": {
+        "lat": 13.051139,
+        "lon": 80.09725
+      },
+      "positionQuality": "verified",
+      "positionSource": "Wikipedia — Varadaraja Perumal Temple, Poonamallee (13.051139, 80.097250)"
+    },
+    {
+      "id": "poonamallee-government-hospital",
+      "name": "Government Hospital, Poonamallee",
+      "nameTa": "அரசு மருத்துவமனை, பூந்தமல்லி",
+      "nameTaVerified": false,
+      "kind": "civic",
+      "nearStation": "mullaithottam",
+      "description": "Mullaithottam station is also known as Poonamallee Government Hospital. The hospital is at 600 Trunk Road, Mullai Thottam.",
+      "source": "Wikipedia — Mullaithottam metro station; Practo — Government Hospital, Poonamallee",
+      "model": {
+        "type": "hospital",
+        "along": 70,
+        "depth": 45,
+        "height": 18
+      },
+      "position": {
+        "station": "mullaithottam",
+        "alongM": 90,
+        "side": "north",
+        "offsetM": 45
+      },
+      "positionQuality": "approximate",
+      "positionSource": "Street address only (600 Trunk Road, Mullai Thottam); placed beside the station that is named after it. Side of the road assumed."
+    },
+    {
+      "id": "mount-poonamallee-road",
+      "name": "Mount–Poonamallee Road",
+      "kind": "road",
+      "nearStation": "kattupakkam",
+      "description": "Kattupakkam lies on Mount–Poonamallee Road, about 20 km from Fort St George.",
+      "source": "Wikipedia — Kattupakkam"
+    },
+    {
+      "id": "iyyappanthangal-bus-depot",
+      "name": "Iyyappanthangal Bus Depot",
+      "nameTa": "ஐயப்பன்தாங்கல் பணிமனை",
+      "nameTaVerified": false,
+      "kind": "transport",
+      "nearStation": "iyyappanthangal",
+      "description": "Six-acre MTC bus terminus on Mount–Poonamallee Road, opened in 1994.",
+      "source": "Wikipedia — Iyyapanthangal",
+      "model": {
+        "type": "bus-stand",
+        "along": 150,
+        "depth": 110
+      },
+      "position": {
+        "station": "iyyappanthangal",
+        "alongM": 110,
+        "side": "south",
+        "offsetM": 80
+      },
+      "positionQuality": "approximate",
+      "positionSource": "TellMyRoute — stop 'Iyyappanthangal Bus Depot, Mount Poonamallee Road, VGN Nagar'. Exact site and side of the road not published."
+    },
+    {
+      "id": "porur-lake",
+      "name": "Porur Lake",
+      "nameTa": "போரூர் ஏரி",
+      "nameTaVerified": true,
+      "kind": "lake",
+      "nearStation": "porur-bypass",
+      "description": "About 200 acres (46 million cubic feet), on the south-western fringe of Porur and a drinking-water source for the city. Drawn smaller than the real lake and set back so its shore clears the road.",
+      "source": "Wikipedia — Porur Lake",
+      "model": {
+        "type": "lake",
+        "along": 620,
+        "depth": 460
+      },
+      "position": {
+        "lat": 13.034223,
+        "lon": 80.15065,
+        "side": "south"
+      },
+      "positionQuality": "approximate",
+      "positionSource": "Wikipedia — Porur Lake (13.034223, 80.15065); outline simplified."
+    },
+    {
+      "id": "mgr-flyover",
+      "name": "Bharat Ratna Puratchi Thalaivar M.G.R. Flyover",
+      "nameTa": "பாரத ரத்னா புரட்சித் தலைவர் எம்.ஜி.ஆர். மேம்பாலம்",
+      "nameTaVerified": false,
+      "kind": "structure",
+      "nearStation": "porur-junction",
+      "description": "505 m, four-lane flyover on Mount–Poonamallee Road over Porur Junction, opened 25 June 2017 at a cost of ₹54 crore. West of the junction it runs beneath the metro, which crosses above it on steel portal beams; at the junction the metro turns north-east up Arcot Road while the flyover carries on east-south-east towards Guindy. Shown in 3D; its height is drawn lower than real to fit under the modelled viaduct.",
+      "source": "india.com / PTI (June 2017); Wikipedia — Flyovers in Chennai; DT Next"
+    },
+    {
+      "id": "arcot-road-double-decker",
+      "name": "Arcot Road double-decker",
+      "kind": "structure",
+      "nearStation": "alapakkam",
+      "description": "3.75 km two-tier viaduct between Alapakkam and Alwarthirunagar: Line 4 on the lower deck, Line 5 on the upper deck, with shared concourses at four stations.",
+      "source": "Daily Jagran / DT Next"
+    },
+    {
+      "id": "vadapalani-bus-depot",
+      "name": "Vadapalani Bus Depot",
+      "nameTa": "வடபழனி பணிமனை",
+      "nameTaVerified": false,
+      "kind": "transport",
+      "nearStation": "vadapalani",
+      "description": "MTC depot of about 6.65 acres on Arcot Road with over 158 buses, among the city's busiest; planned for redevelopment as an integrated bus terminal.",
+      "source": "DT Next — 'Vadapalani depot to get a facelift for Rs 481 crore'",
+      "model": {
+        "type": "bus-stand",
+        "along": 160,
+        "depth": 110
+      },
+      "position": {
+        "lat": 13.050403,
+        "lon": 80.206759,
+        "side": "south"
+      },
+      "positionQuality": "approximate",
+      "positionSource": "Mappls — 'Vadapalani MTC Bus Stop, Arcot Road' (13.050403, 80.206759). Depot outline and side of the road not published."
+    },
+    {
+      "id": "nexus-vijaya-mall",
+      "name": "Nexus Vijaya Mall",
+      "nameTa": "நெக்சஸ் விஜயா மால்",
+      "nameTaVerified": false,
+      "kind": "commercial",
+      "nearStation": "vadapalani",
+      "description": "Shopping mall on Arcot Road just west of Vadapalani station, formerly Forum Vijaya Mall. Modelled on a photo of its front: a sweeping silver canopy over glass blocks, with a landscaped forecourt. Hoardings show invented ads.",
+      "source": "Satellite view and reference photo supplied by the project owner; public listing on Arcot Road, Vadapalani.",
+      "model": {
+        "type": "mall",
+        "along": 130,
+        "depth": 115,
+        "height": 32
+      },
+      "position": {
+        "station": "vadapalani",
+        "alongM": -180,
+        "side": "north",
+        "offsetM": 85
+      },
+      "positionQuality": "approximate",
+      "positionSource": "Traced from satellite imagery supplied by the project owner: north side of Arcot Road, about 180 m before Vadapalani station."
+    },
+    {
+      "id": "kamala-cinemas",
+      "name": "Kamala Cinemas",
+      "nameTa": "கமலா",
+      "nameTaVerified": true,
+      "kind": "commercial",
+      "nearStation": "vadapalani",
+      "description": "Single-screen cinema on Arcot Road beside Vadapalani station, with a large open car park in front. Modelled on a photo of its white front; film posters are invented.",
+      "source": "Satellite view and reference photo supplied by the project owner; public listing on Arcot Road, Vadapalani.",
+      "model": {
+        "type": "cinema",
+        "along": 62,
+        "depth": 95,
+        "height": 24
+      },
+      "position": {
+        "station": "vadapalani",
+        "alongM": -60,
+        "side": "south",
+        "offsetM": 60
+      },
+      "positionQuality": "approximate",
+      "positionSource": "Traced from satellite imagery supplied by the project owner: south side of Arcot Road just west of Vadapalani station, behind its car park."
+    },
+    {
+      "id": "vadapalani-murugan-temple",
+      "name": "Vadapalani Murugan Temple",
+      "nameTa": "வடபழனி ஆண்டவர் கோவில்",
+      "nameTaVerified": true,
+      "kind": "temple",
+      "nearStation": "vadapalani",
+      "description": "Temple to Murugan, with a 40.8 m eastern gopuram carved with the 108 Bharatanatyam poses.",
+      "source": "Wikipedia — Vadapalani Murugan Temple",
+      "model": {
+        "type": "temple",
+        "along": 70,
+        "depth": 90,
+        "height": 40.8
+      },
+      "position": {
+        "lat": 13.05278,
+        "lon": 80.21361
+      },
+      "positionQuality": "verified",
+      "positionSource": "Wikipedia — Vadapalani Murugan Temple (13.05278, 80.21361)"
+    },
+    {
+      "id": "vadapalani-green-line",
+      "name": "Green Line interchange",
+      "kind": "interchange",
+      "nearStation": "vadapalani",
+      "description": "Vadapalani is also on the Phase I Green Line (open since 29 June 2015). The combined station is elevated with 4 tracks on 3 platform levels.",
+      "source": "Wikipedia — Vadapalani metro station"
+    }
+  ]
+}

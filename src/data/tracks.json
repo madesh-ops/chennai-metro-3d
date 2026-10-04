@@ -1,0 +1,267 @@
+{
+  "meta": {
+    "lastVerified": "2026-10-03",
+    "summary": "Physical and operating parameters used by the simulator. Every value is tagged verified, reported or assumed. Assumed values are typical of elevated metro systems and exist so the simulation can run; replace them when CMRL publishes figures.",
+    "sources": {
+      "alstom": "Alstom press releases (2022–2025) — Metropolis driverless trainsets for Chennai Metro Phase II, built at Sri City",
+      "metrorailguy-stock": "The Metro Rail Guy — Phase II trainset: 3 coaches, 67.8 m, ~1000 passengers (crush), 90 km/h design / 80 km/h operating, DMC+TC+DMC, GoA4",
+      "speed-may-2026": "News coverage (May 2026) of the revised CMRS approval: Porur–Vadapalani maximum speed raised from 25 km/h to 40 km/h",
+      "jagran-double-decker": "Daily Jagran / DT Next — two-tier stretch on Arcot Road, 3.75 km between Alapakkam and Alwarthirunagar; Corridor 4 lower deck, Corridor 5 upper deck"
+    }
+  },
+  "alignment": {
+    "method": "Centripetal Catmull–Rom spline through station coordinates. Not a surveyed alignment: the real viaduct follows Trunk Road / Mount–Poonamallee Road and Arcot Road, which curve between stations.",
+    "status": "approximate",
+    "railLevelM": {
+      "value": 18.0,
+      "status": "assumed",
+      "note": "Raised from 12.5 m so the metro, its station concourses and steel portals clear road traffic on the MGR flyover at Porur Junction (flyover deck about 6.7 m, buses about 3.2 m on top)."
+    },
+    "trackCentresM": {
+      "value": 4.2,
+      "status": "assumed"
+    },
+    "gaugeMm": {
+      "value": 1435,
+      "status": "verified",
+      "note": "Chennai Metro uses standard gauge."
+    },
+    "pierSpacingM": {
+      "value": 30,
+      "status": "assumed"
+    },
+    "tailTrackM": {
+      "value": 260,
+      "status": "assumed",
+      "note": "Visual run-off beyond each terminus."
+    },
+    "driving": "left",
+    "drivingNote": "Trains are drawn on the left-hand track in their direction of travel; CMRL track allocation for Line 4 is not published."
+  },
+  "sections": [
+    {
+      "from": "poonamallee-bypass",
+      "to": "porur-junction",
+      "maxSpeedKmh": 80,
+      "status": "assumed",
+      "note": "No section speed restriction has been published; uses the trainset's 80 km/h operating speed (metrorailguy-stock)."
+    },
+    {
+      "from": "porur-junction",
+      "to": "vadapalani",
+      "maxSpeedKmh": 40,
+      "status": "reported",
+      "source": "speed-may-2026"
+    }
+  ],
+  "structures": {
+    "doubleDecker": {
+      "from": "alapakkam",
+      "to": "alwarthirunagar",
+      "lengthKm": 3.75,
+      "lowerDeck": "line-4",
+      "upperDeck": "line-5",
+      "upperDeckHeightAboveRailM": {
+        "value": 9.5,
+        "status": "assumed"
+      },
+      "status": "reported",
+      "source": "jagran-double-decker",
+      "line5West": {
+        "line": "line-5",
+        "peelArc": {
+          "radiusM": 99.7,
+          "turnDeg": 143.0,
+          "note": "Circular arc: leaves the upper deck in line with it (no kink) and runs tangentially onto Mount–Poonamallee Road just east of the MGR flyover. About the widest curve the modelled junction allows."
+        },
+        "descent": {
+          "fromM": 60,
+          "toM": 560,
+          "status": "assumed"
+        },
+        "streetWidthM": 9,
+        "status": "approximate",
+        "source": "Shape traced from satellite imagery supplied by the project owner: Line 5 peels off the upper deck, drops south along Ramakrishna Street and lands on Mount–Poonamallee Road just east of the MGR flyover, heading towards Mugalivakkam. Station order from Wikipedia — Red Line (Chennai Metro).",
+        "side": "south",
+        "landsOn": {
+          "road": "mount-poonamallee-road",
+          "fromJunctionM": 410
+        }
+      }
+    },
+    "platform": {
+      "type": "side",
+      "lengthM": {
+        "value": 92,
+        "status": "assumed"
+      },
+      "widthM": {
+        "value": 4,
+        "status": "assumed"
+      },
+      "heightAboveRailM": {
+        "value": 1.1,
+        "status": "assumed"
+      }
+    },
+    "flyovers": [
+      {
+        "id": "mgr-flyover",
+        "name": "Bharat Ratna Puratchi Thalaivar M.G.R. Flyover",
+        "shortName": "MGR Flyover",
+        "nameTa": "பாரத ரத்னா புரட்சித் தலைவர் எம்.ஜி.ஆர். மேம்பாலம்",
+        "nameTaVerified": false,
+        "lengthM": {
+          "value": 505,
+          "status": "verified"
+        },
+        "lanes": {
+          "value": 4,
+          "status": "verified"
+        },
+        "widthM": {
+          "value": 16.6,
+          "status": "assumed",
+          "note": "Two 3.85 m lanes each way between crash barriers."
+        },
+        "crestDeckM": {
+          "value": 6.7,
+          "status": "assumed",
+          "note": "About 5.5 m clearance for the junction road beneath plus a 1.2 m deck."
+        },
+        "rampM": {
+          "value": 195,
+          "status": "assumed",
+          "note": "Straight grade (about 4.3 %) with 40 m rounded ends."
+        },
+        "opened": "2017-06-25",
+        "source": "india.com / PTI — 'TN Chief Minister opens Porur flyover' (505 m, Rs 54 crore, 25 June 2017); Wikipedia — Flyovers in Chennai (0.5 km, 4 lanes); DT Next — metro steel portal beams near the flyover. Position along Mount–Poonamallee Road (≈200 m west to ≈305 m east of the junction) from the satellite view supplied by the project owner.",
+        "road": "mount-poonamallee-road",
+        "fromJunctionM": -200,
+        "toJunctionM": 305
+      }
+    ],
+    "sideRoads": [
+      {
+        "id": "mount-poonamallee-road",
+        "name": "Mount–Poonamallee Road",
+        "atStation": "porur-junction",
+        "westM": 260,
+        "widthM": 30,
+        "path": [
+          [
+            0,
+            0
+          ],
+          [
+            30,
+            4
+          ],
+          [
+            100,
+            40
+          ],
+          [
+            200,
+            85
+          ],
+          [
+            300,
+            132
+          ],
+          [
+            450,
+            200
+          ],
+          [
+            600,
+            270
+          ],
+          [
+            800,
+            363
+          ],
+          [
+            1000,
+            456
+          ]
+        ],
+        "status": "approximate",
+        "source": "Traced from satellite imagery supplied by the project owner: at Porur Junction the metro turns north-east onto Arcot Road while Mount–Poonamallee Road (and the MGR flyover) continues east-south-east; Kundrathur Main Road leaves south-west."
+      },
+      {
+        "id": "kundrathur-road",
+        "name": "Kundrathur Main Road",
+        "atStation": "porur-junction",
+        "westM": 0,
+        "widthM": 20,
+        "path": [
+          [
+            0,
+            0
+          ],
+          [
+            -60,
+            125
+          ],
+          [
+            -130,
+            270
+          ],
+          [
+            -196,
+            405
+          ]
+        ],
+        "status": "approximate",
+        "source": "Traced from satellite imagery supplied by the project owner: at Porur Junction the metro turns north-east onto Arcot Road while Mount–Poonamallee Road (and the MGR flyover) continues east-south-east; Kundrathur Main Road leaves south-west."
+      }
+    ]
+  },
+  "rollingStock": {
+    "manufacturer": "Alstom",
+    "family": "Metropolis",
+    "cars": 3,
+    "formation": [
+      "DMC",
+      "TC",
+      "DMC"
+    ],
+    "lengthM": 67.8,
+    "widthM": {
+      "value": 2.9,
+      "status": "assumed"
+    },
+    "heightM": {
+      "value": 3.9,
+      "status": "assumed"
+    },
+    "doorsPerSide": {
+      "value": 4,
+      "status": "assumed"
+    },
+    "capacityCrush": 1000,
+    "designSpeedKmh": 90,
+    "operatingSpeedKmh": 80,
+    "automation": "GoA4 (driverless capable)",
+    "livery": {
+      "status": "stylised",
+      "note": "Body colours are a stylised interpretation, not the official livery."
+    },
+    "source": "metrorailguy-stock"
+  },
+  "operations": {
+    "status": "assumed",
+    "note": "CMRL has not published Line 4 dwell times or acceleration figures. These are typical values for modern metro trainsets.",
+    "accelerationMps2": 1.0,
+    "serviceBrakeMps2": 0.85,
+    "maxBrakeMps2": 1.1,
+    "jerkMps3": 0.75,
+    "dwellSeconds": 22,
+    "doorOpeningSeconds": 2.6,
+    "doorClosingSeconds": 3.6,
+    "settleBeforeDoorsSeconds": 1.4,
+    "originBoardingSeconds": 5,
+    "terminusAlightSeconds": 8
+  }
+}

@@ -1,0 +1,324 @@
+{
+  "meta": {
+    "description": "Stations on the first Phase II stretch of Chennai Metro Line 4 (Yellow Line), listed west to east from Poonamallee Bypass to Vadapalani.",
+    "lastVerified": "2026-10-03",
+    "coordinateQuality": {
+      "station": "Coordinates of the metro station itself, from its Wikipedia article.",
+      "bus-stop": "Coordinates of the MTC bus stop of the same name (MTC GTFS feed via TellMyRoute). The station sits on the same road; treat as approximate (±150 m).",
+      "locality": "Coordinates of the locality (Wikipedia). The station sits on the main road through it; treat as approximate (±300 m).",
+      "interpolated": "No published coordinates. Placed on the straight line between Porur Junction and Vadapalani for visualisation only, spaced so Alapakkam–Alwarthirunagar spans the reported 3.75 km double-decker. Replace with surveyed data when available."
+    },
+    "tamilNames": "Standard Tamil spellings of the locality names, cross-checked against Tamil-language news coverage of the opening (Oneindia Tamil, ETV Bharat Tamil). CMRL has not yet published official station signage spellings, so nameTaVerified is false until it does.",
+    "sources": {
+      "wiki-stations": "Wikipedia articles for Poonamallee Bypass, Mullaithottam, Thelliyaragaram, Porur Bypass, Porur Junction and Vadapalani metro stations",
+      "wiki-localities": "Wikipedia articles for Kattupakkam, Iyyapanthangal and Kumananchavadi",
+      "mtc-gtfs": "MTC bus stops 'Poonamallee' and 'Karayanchavadi' (TellMyRoute, Chennai MTC GTFS)",
+      "dtnext-cmrs": "DT Next — 'Poonamallee Bypass-Porur Metro services to begin soon' (CMRS authorises 14.6 km Poonamallee Bypass–Porur Junction–Vadapalani)",
+      "dtnext-fares": "DT Next — 'Poonamallee-Vadapalani Metro fares fixed at Rs 10-Rs 40 ahead of proposed October 11 inauguration' (Sep 2026)",
+      "nativeplanet-opening": "NativePlanet — 'Chennai Metro Phase-2: Poonamallee to Vadapalani Stretch Opens October 11'",
+      "jagran-double-decker": "Daily Jagran / DT Next — Arcot Road double-decker: 3.75 km between Alapakkam and Alwarthirunagar, Corridor 4 on the lower deck",
+      "railanalysis-skip": "Rail Analysis India — trial run Porur Junction–Vadapalani; services skip Alapakkam, Karambakkam, Valasaravakkam, Alwarthirunagar, Virugambakkam South, Saligramam"
+    }
+  },
+  "stations": [
+    {
+      "id": "poonamallee-bypass",
+      "name": "Poonamallee Bypass",
+      "nameTa": "பூந்தமல்லி புறவழிச்சாலை",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "terminus": true,
+      "coordinates": {
+        "lat": 13.048,
+        "lon": 80.0818,
+        "quality": "station",
+        "source": "wiki-stations"
+      },
+      "notes": "Western terminus of Line 4, beside the Phase II Poonamallee Depot."
+    },
+    {
+      "id": "poonamallee",
+      "name": "Poonamallee",
+      "nameTa": "பூந்தமல்லி",
+      "nameTaVerified": false,
+      "altNames": [
+        "Poonamallee Bus Stand"
+      ],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": {
+        "lat": 13.05045,
+        "lon": 80.09317,
+        "quality": "bus-stop",
+        "source": "mtc-gtfs"
+      },
+      "notes": "Referred to as Poonamallee Bus Stand in CMRL's fare announcement."
+    },
+    {
+      "id": "mullaithottam",
+      "name": "Mullaithottam",
+      "nameTa": "முல்லைத்தோட்டம்",
+      "nameTaVerified": false,
+      "altNames": [
+        "Poonamallee Government Hospital"
+      ],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": {
+        "lat": 13.04978,
+        "lon": 80.10218,
+        "quality": "station",
+        "source": "wiki-stations"
+      },
+      "notes": "On Trunk Road, Poonamallee."
+    },
+    {
+      "id": "karayanchavadi",
+      "name": "Karayanchavadi",
+      "nameTa": "கரையான்சாவடி",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": {
+        "lat": 13.04646,
+        "lon": 80.11113,
+        "quality": "bus-stop",
+        "source": "mtc-gtfs"
+      },
+      "notes": ""
+    },
+    {
+      "id": "kumananchavadi",
+      "name": "Kumananchavadi",
+      "nameTa": "குமணன்சாவடி",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": {
+        "lat": 13.044968,
+        "lon": 80.116017,
+        "quality": "locality",
+        "source": "wiki-localities"
+      },
+      "notes": ""
+    },
+    {
+      "id": "kattupakkam",
+      "name": "Kattupakkam",
+      "nameTa": "காட்டுப்பாக்கம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": {
+        "lat": 13.0414,
+        "lon": 80.1267,
+        "quality": "locality",
+        "source": "wiki-localities"
+      },
+      "notes": "Kattupakkam lies on Mount–Poonamallee Road."
+    },
+    {
+      "id": "iyyappanthangal",
+      "name": "Iyyappanthangal",
+      "nameTa": "ஐயப்பன்தாங்கல்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": {
+        "lat": 13.03806,
+        "lon": 80.135,
+        "quality": "locality",
+        "source": "wiki-localities"
+      },
+      "notes": ""
+    },
+    {
+      "id": "thelliyaragaram",
+      "name": "Thelliyaragaram",
+      "nameTa": "தெள்ளியரகரம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": {
+        "lat": 13.03691,
+        "lon": 80.14173,
+        "quality": "station",
+        "source": "wiki-stations"
+      },
+      "notes": ""
+    },
+    {
+      "id": "porur-bypass",
+      "name": "Porur Bypass",
+      "nameTa": "போரூர் புறவழிச்சாலை",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": {
+        "lat": 13.03628,
+        "lon": 80.15017,
+        "quality": "station",
+        "source": "wiki-stations"
+      },
+      "notes": ""
+    },
+    {
+      "id": "porur-junction",
+      "name": "Porur Junction",
+      "nameTa": "போரூர் சந்திப்பு",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": {
+        "lat": 13.03587,
+        "lon": 80.15683,
+        "quality": "station",
+        "source": "wiki-stations"
+      },
+      "notes": "End of the section CMRS cleared for regular 10-station operation; beyond here trains run along Arcot Road to Vadapalani."
+    },
+    {
+      "id": "alapakkam",
+      "name": "Alapakkam",
+      "nameTa": "ஆலப்பாக்கம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated-double-decker",
+      "service": "pass",
+      "coordinates": null,
+      "placement": {
+        "between": [
+          "porur-junction",
+          "vadapalani"
+        ],
+        "fraction": 0.08,
+        "quality": "interpolated"
+      },
+      "notes": "Double-decker station (Corridor 4 lower deck, Corridor 5 upper deck). Trains pass without stopping at opening."
+    },
+    {
+      "id": "karambakkam",
+      "name": "Karambakkam",
+      "nameTa": "காரம்பாக்கம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated-double-decker",
+      "service": "pass",
+      "coordinates": null,
+      "placement": {
+        "between": [
+          "porur-junction",
+          "vadapalani"
+        ],
+        "fraction": 0.282,
+        "quality": "interpolated"
+      },
+      "notes": "Double-decker station. Trains pass without stopping at opening."
+    },
+    {
+      "id": "valasaravakkam",
+      "name": "Valasaravakkam",
+      "nameTa": "வளசரவாக்கம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated-double-decker",
+      "service": "pass",
+      "coordinates": null,
+      "placement": {
+        "between": [
+          "porur-junction",
+          "vadapalani"
+        ],
+        "fraction": 0.483,
+        "quality": "interpolated"
+      },
+      "notes": "Double-decker station. Trains pass without stopping at opening."
+    },
+    {
+      "id": "alwarthirunagar",
+      "name": "Alwarthirunagar",
+      "nameTa": "ஆழ்வார்திருநகர்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated-double-decker",
+      "service": "pass",
+      "coordinates": null,
+      "placement": {
+        "between": [
+          "porur-junction",
+          "vadapalani"
+        ],
+        "fraction": 0.685,
+        "quality": "interpolated"
+      },
+      "notes": "Eastern end of the 3.75 km double-decker stretch. Trains pass without stopping at opening."
+    },
+    {
+      "id": "saligramam",
+      "name": "Saligramam",
+      "nameTa": "சாலிகிராமம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "pass",
+      "coordinates": null,
+      "placement": {
+        "between": [
+          "porur-junction",
+          "vadapalani"
+        ],
+        "fraction": 0.8,
+        "quality": "interpolated"
+      },
+      "notes": "Reported as not ready at opening; trains pass without stopping."
+    },
+    {
+      "id": "avichi-school",
+      "name": "Avichi School",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "pass",
+      "coordinates": null,
+      "placement": {
+        "between": [
+          "porur-junction",
+          "vadapalani"
+        ],
+        "fraction": 0.9,
+        "quality": "interpolated"
+      },
+      "notes": "Name as listed by NativePlanet. One trial-run report lists 'Virugambakkam South' in this slot instead; unresolved."
+    },
+    {
+      "id": "vadapalani",
+      "name": "Vadapalani",
+      "nameTa": "வடபழனி",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "terminus": true,
+      "interchange": [
+        "line-2"
+      ],
+      "coordinates": {
+        "lat": 13.0505,
+        "lon": 80.21208,
+        "quality": "station",
+        "source": "wiki-stations"
+      },
+      "notes": "Interchange with the Green Line (Line 2), open since 29 June 2015. Elevated, 4 tracks on 3 platform levels."
+    }
+  ]
+}
