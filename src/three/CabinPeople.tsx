@@ -2,19 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  BoxGeometry,
-  BufferAttribute,
   type BufferGeometry,
   CanvasTexture,
-  CapsuleGeometry,
-  Color,
-  CylinderGeometry,
   Matrix4,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
   Quaternion,
-  SphereGeometry,
   SRGBColorSpace,
   Vector3,
 } from "three";
@@ -24,7 +18,8 @@ import { TRAIN } from "./layout.ts";
 import { ensureFontsLoaded, fontFamilies } from "./textures.ts";
 import { crowdFactor, localHour } from "../simulation/crowd.ts";
 import { useViewStore } from "../simulation/store.ts";
-import { mulberry32, pick, range as rr, type Rng } from "../utils/random.ts";
+import { mulberry32, range as rr, type Rng } from "../utils/random.ts";
+import { humanTemplate, paintHuman, pickColours, pickHair, pickOutfit, type Pose } from "./humanModel.ts";
 
 /**
  * Passengers inside the cars, seated on the benches and standing by the
@@ -48,12 +43,6 @@ const CLEAR_SPOTS = [
 const CLEAR_AISLE = { x0: -10.1, x1: -6.1, halfZ: 0.45 };
 /** From the window seat you look across the car: no one stands in that band (people opposite still sit). */
 const WINDOW_SIGHTLINE = { x: -1.6, halfX: 1.4 };
-
-const CLOTHES = ["#c0392b", "#2e86c1", "#f1c40f", "#27ae60", "#8e44ad", "#ecf0f1", "#e67e22", "#1abc9c", "#34495e", "#f5f5f5", "#1f3c66"];
-const SAREES = ["#c2185b", "#e65100", "#00897b", "#fdd835", "#6a1b9a", "#ad1457", "#2e7d32", "#d84315", "#f06292"];
-const TROUSERS = ["#2b2e33", "#3b4a5c", "#4a4036", "#1f2a36"];
-const SKIN = ["#8d5524", "#a0673a", "#6b4226", "#c68642", "#7a4a2a", "#9c6b45"];
-const HAIR = "#15110e";
 
 interface Slot {
   x: number;
@@ -104,30 +93,6 @@ function shuffle<T>(items: T[], rng: Rng): T[] {
   return a;
 }
 
-const tmpColor = new Color();
-function painted(g: BufferGeometry, hex: string): BufferGeometry {
-  const n = g.index ? g.toNonIndexed() : g.clone();
-  for (const name of Object.keys(n.attributes)) if (name !== "position" && name !== "normal") n.deleteAttribute(name);
-  tmpColor.set(hex);
-  const arr = new Float32Array(n.attributes.position.count * 3);
-  for (let i = 0; i < n.attributes.position.count; i++) tmpColor.toArray(arr, i * 3);
-  n.setAttribute("color", new BufferAttribute(arr, 3));
-  return n;
-}
-
-// Body templates in person-local space: +z forward, origin at the feet (standing) or hips (seated).
-const T = {
-  legs: new BoxGeometry(0.3, 0.82, 0.2).translate(0, 0.41, 0),
-  torso: new CapsuleGeometry(0.18, 0.36, 2, 8).scale(1, 1, 0.72).translate(0, 1.1, 0),
-  skirt: new CylinderGeometry(0.17, 0.27, 0.92, 10).translate(0, 0.46, 0),
-  torsoF: new CapsuleGeometry(0.16, 0.32, 2, 8).scale(1, 1, 0.72).translate(0, 1.07, 0),
-  seatTorso: new CapsuleGeometry(0.18, 0.36, 2, 8).scale(1, 1, 0.72).translate(0, 0.36, 0),
-  thighs: new BoxGeometry(0.32, 0.15, 0.46).translate(0, 0.06, 0.2),
-  shins: new BoxGeometry(0.28, 0.48, 0.14).translate(0, -0.22, 0.42),
-  head: new SphereGeometry(0.11, 10, 8),
-  hair: new SphereGeometry(0.115, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55),
-};
-
 function buildPeople(kind: CarKind, carIndex: number, factor: number, women: boolean): BufferGeometry | null {
   const layout = cabinLayout(kind);
   const rng = mulberry32(carIndex * 977 + 31);
@@ -145,42 +110,20 @@ function buildPeople(kind: CarKind, carIndex: number, factor: number, women: boo
   const pos = new Vector3();
   const scale = new Vector3();
   for (const slot of chosen) {
-    const woman = women || rng() < 0.42;
-    const h = rr(rng, 0.94, 1.06);
-    const yaw = slot.yaw + rr(rng, -0.25, 0.25);
-    q.setFromAxisAngle(up, yaw);
+    const outfit = pickOutfit(rng, women);
+    const pose: Pose = slot.seated ? "sit" : rng() < 0.4 ? "strap" : rng() < 0.55 ? "phone" : "stand";
+    const hair = pickHair(outfit, rng);
+    const jasmine = hair !== "short" && rng() < 0.45;
+    const colours = pickColours(outfit, rng);
+    const h = rr(rng, 0.95, 1.05) * (outfit === "saree" || outfit === "kurta" ? 0.95 : 1);
+    q.setFromAxisAngle(up, slot.yaw + rr(rng, -0.25, 0.25));
     const jitterX = rr(rng, -0.08, 0.08);
-    const skin = pick(rng, SKIN);
-    const cloth = woman ? pick(rng, SAREES) : pick(rng, CLOTHES);
-    let pieces: [BufferGeometry, string][];
-    let headY: number;
-    if (slot.seated) {
-      pos.set(slot.x + jitterX, layout.seatY, slot.z);
-      pieces = [
-        [T.seatTorso, cloth],
-        [T.thighs, woman ? cloth : pick(rng, TROUSERS)],
-        [T.shins, woman ? cloth : pick(rng, TROUSERS)],
-      ];
-      headY = 0.8;
-    } else {
-      pos.set(slot.x + jitterX, layout.floorY, slot.z + rr(rng, -0.06, 0.06));
-      pieces = woman
-        ? [
-            [T.skirt, cloth],
-            [T.torsoF, cloth],
-          ]
-        : [
-            [T.legs, pick(rng, TROUSERS)],
-            [T.torso, cloth],
-          ];
-      headY = woman ? 1.47 : 1.52;
-    }
-    scale.set(1, h, 1);
+    if (slot.seated) pos.set(slot.x + jitterX, layout.seatY, slot.z);
+    else pos.set(slot.x + jitterX, layout.floorY, slot.z + rr(rng, -0.06, 0.06));
+    // Seated people keep their leg length (feet on the floor); only standing ones vary in height.
+    scale.setScalar(slot.seated ? 1 : h);
     m.compose(pos, q, scale);
-    for (const [g, hex] of pieces) parts.push(painted(g, hex).applyMatrix4(m));
-    const head = painted(T.head, skin).translate(0, headY, 0).applyMatrix4(m);
-    const hair = painted(T.hair, HAIR).translate(0, headY + 0.015, -0.005).applyMatrix4(m);
-    parts.push(head, hair);
+    parts.push(paintHuman(humanTemplate({ outfit, pose, hair, jasmine }), colours).applyMatrix4(m));
   }
   const merged = mergeGeometries(parts);
   parts.forEach((p) => p.dispose());

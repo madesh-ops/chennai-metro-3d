@@ -6,13 +6,14 @@ import {
   AdditiveBlending,
   BoxGeometry,
   BufferGeometry,
-  CapsuleGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
+  Group,
   IcosahedronGeometry,
   InstancedBufferAttribute,
   InstancedMesh,
+  Matrix4,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
@@ -26,6 +27,8 @@ import { createBuildingMaterial } from "./materials.ts";
 import { ensureFontsLoaded, makeRadialTexture, makeSignAtlasTexture } from "./textures.ts";
 import { SIGN_COLS, SIGN_ROWS, signAtlasNames } from "./shopNames.ts";
 import { chunkRanges } from "../utils/geometry.ts";
+import { mulberry32 } from "../utils/random.ts";
+import { createHumanMaterial, crowdMesh, CROWD_VARIANTS, pickColours, type CrowdMember } from "./humanModel.ts";
 
 const CHUNK = 800;
 
@@ -104,11 +107,9 @@ function useShared(): Shared {
     const pool = new PlaneGeometry(1, 1);
     pool.rotateX(-Math.PI / 2);
     const sign = new PlaneGeometry(1, 1);
-    const person = new CapsuleGeometry(0.22, 1.12, 2, 6);
-    person.translate(0, 0.78, 0);
     const radial = makeRadialTexture();
     return {
-      geo: { box, tank, trunk, crown, palm: palmGeometry(), pole: poleGeometry(), lamp, pool, person, sign },
+      geo: { box, tank, trunk, crown, palm: palmGeometry(), pole: poleGeometry(), lamp, pool, sign },
       mat: {
         building: createBuildingMaterial(env),
         tank: new MeshStandardMaterial({ color: "#1f2328", roughness: 0.6 }),
@@ -128,7 +129,7 @@ function useShared(): Shared {
           polygonOffsetFactor: -3,
           polygonOffsetUnits: -12,
         }),
-        person: new MeshStandardMaterial({ color: "#ffffff", roughness: 0.8 }),
+        person: createHumanMaterial(),
         sign: createSignMaterial(),
       },
     };
@@ -221,6 +222,37 @@ function Instanced({
   return mesh ? <primitive object={mesh} /> : null;
 }
 
+/** Pedestrians: one instanced mesh per body variant (set.kinds), colours seeded per person. */
+function Crowd({ set, material }: { set: InstanceSet; material: MeshStandardMaterial }) {
+  const group = useMemo(() => {
+    if (!set.count || !set.kinds) return null;
+    const rng = mulberry32(Math.round(Math.abs(set.matrices[12]) * 7 + Math.abs(set.matrices[14]) * 13));
+    const groups: CrowdMember[][] = CROWD_VARIANTS.map(() => []);
+    for (let i = 0; i < set.count; i++) {
+      const v = Math.min(CROWD_VARIANTS.length - 1, set.kinds[i]);
+      const matrix = new Matrix4().fromArray(set.matrices, i * 16);
+      groups[v].push({ matrix, colours: pickColours(CROWD_VARIANTS[v].outfit, rng) });
+    }
+    const g = new Group();
+    groups.forEach((members, v) => {
+      if (!members.length) return;
+      const mesh = crowdMesh(CROWD_VARIANTS[v], members, material);
+      mesh.matrixAutoUpdate = false;
+      g.add(mesh);
+    });
+    return g;
+  }, [set, material]);
+  useEffect(
+    () => () =>
+      group?.children.forEach((c) => {
+        (c as InstancedMesh).geometry.dispose();
+        (c as InstancedMesh).dispose();
+      }),
+    [group],
+  );
+  return group ? <primitive object={group} /> : null;
+}
+
 function Chunk({ chunk, shared, shadows }: { chunk: CityChunk; shared: Shared; shadows: boolean }) {
   const { geo, mat } = shared;
   return (
@@ -233,7 +265,7 @@ function Chunk({ chunk, shared, shadows }: { chunk: CityChunk; shared: Shared; s
       <Instanced set={chunk.poles} geometry={geo.pole} material={mat.pole} />
       <Instanced set={chunk.lamps} geometry={geo.lamp} material={mat.lamp} />
       <Instanced set={chunk.pools} geometry={geo.pool} material={mat.pool} />
-      <Instanced set={chunk.people} geometry={geo.person} material={mat.person} />
+      <Crowd set={chunk.people} material={mat.person as MeshStandardMaterial} />
       <Instanced set={chunk.signs} geometry={geo.sign} material={mat.sign} cells receiveShadow />
     </group>
   );

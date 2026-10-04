@@ -5,10 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AdditiveBlending,
   BoxGeometry,
-  CapsuleGeometry,
   Color,
   CylinderGeometry,
   DoubleSide,
+  Group,
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
@@ -28,6 +28,7 @@ import type { StationModel } from "../simulation/RouteController.ts";
 import { crowdFactor } from "../simulation/crowd.ts";
 import { useViewStore } from "../simulation/store.ts";
 import { useHour } from "./CabinPeople.tsx";
+import { createHumanMaterial, crowdMesh, CROWD_VARIANTS, pickColours, type CrowdMember } from "./humanModel.ts";
 
 export interface StationSignalState {
   /** Station id where our train currently holds a red signal, if any. */
@@ -247,29 +248,32 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     // Midday "auto" (0.5) keeps the old counts; "packed" doubles them.
     const base = quality === "low" ? 0 : quality === "medium" ? 7 : 12;
     const peopleCount = base ? Math.max(1, Math.round(base * 2 * crowdLevel)) : 0;
-    let people: InstancedMesh | null = null;
+    let people: Group | null = null;
     if (peopleCount && served.length) {
-      const geo = new CapsuleGeometry(0.22, 1.1, 2, 6);
-      geo.translate(0, 0.77, 0);
-      people = new InstancedMesh(geo, new MeshStandardMaterial({ color: "#ffffff", roughness: 0.8 }), served.length * peopleCount * 2);
-      const colors = new Float32Array(people.count * 3);
-      const palette = ["#c0392b", "#2e86c1", "#f1c40f", "#27ae60", "#8e44ad", "#ecf0f1", "#e67e22", "#16a085", "#34495e"].map((c) => new Color(c));
-      let i = 0;
+      // Real-proportioned figures in a few outfits and poses, one instanced mesh per variant.
+      const groups: CrowdMember[][] = CROWD_VARIANTS.map(() => []);
       for (const st of served) {
+        const heading = alignment.heading(st.distance);
         for (const s of [-1, 1]) {
           for (let k = 0; k < peopleCount; k++) {
             // Leave the platform ends clear: the cinematic camera stands there.
             const d = st.distance + rr(rng, -params.platformLength / 2 + 14, params.platformLength / 2 - 14);
             alignment.offsetPoint(d, s * rr(rng, params.trackCentres / 2 + 2.6, params.trackCentres / 2 + 5.4), p);
-            composeMatrix(m, p.x, y, p.z, rng() * Math.PI * 2, 1, rr(rng, 0.9, 1.08), 1);
-            people.setMatrixAt(i, m);
-            palette[Math.floor(rng() * palette.length)].toArray(colors, i * 3);
-            i++;
+            // Most face the track, waiting; the rest walk along or chat.
+            const yaw = rng() < 0.65 ? heading + (s > 0 ? Math.PI : 0) + rr(rng, -0.5, 0.5) : rng() * Math.PI * 2;
+            const v = Math.floor(rng() * CROWD_VARIANTS.length);
+            const h = rr(rng, 0.93, 1.06) * (CROWD_VARIANTS[v].outfit === "saree" || CROWD_VARIANTS[v].outfit === "kurta" ? 0.95 : 1);
+            const matrix = new Matrix4();
+            composeMatrix(matrix, p.x, y, p.z, yaw, h, h, h);
+            groups[v].push({ matrix, colours: pickColours(CROWD_VARIANTS[v].outfit, rng) });
           }
         }
       }
-      people.instanceColor = new InstancedBufferAttribute(colors, 3);
-      people.computeBoundingSphere();
+      people = new Group();
+      const material = createHumanMaterial();
+      groups.forEach((members, v) => {
+        if (members.length) people!.add(crowdMesh(CROWD_VARIANTS[v], members, material));
+      });
     }
     let barricades: InstancedMesh | null = null;
     if (closed.length) {
@@ -295,7 +299,8 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
   // Rebuilt when the crowd changes, so free the old meshes.
   useEffect(
     () => () => {
-      for (const mesh of [extras.people, extras.barricades]) {
+      const meshes = [...((extras.people?.children ?? []) as InstancedMesh[]), extras.barricades];
+      for (const mesh of meshes) {
         if (!mesh) continue;
         mesh.geometry.dispose();
         (mesh.material as MeshStandardMaterial).dispose();

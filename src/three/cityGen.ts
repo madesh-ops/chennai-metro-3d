@@ -63,7 +63,8 @@ const WALLS = [
 ];
 const OFFICE = ["#8fa3b3", "#9fb0bc", "#7d8f9e", "#b7c3cb"];
 const FOLIAGE = ["#4f7a3e", "#5a8444", "#456f38", "#68904a", "#3f6634"];
-const CLOTHES = ["#c0392b", "#2e86c1", "#f1c40f", "#27ae60", "#8e44ad", "#ecf0f1", "#e67e22", "#1abc9c", "#34495e"];
+/** Number of body variants for pedestrians (CROWD_VARIANTS.length in humanModel.ts). */
+export const PEOPLE_VARIANTS = 6;
 
 class Builder {
   matrices: number[] = [];
@@ -287,7 +288,9 @@ export function generateCityChunk(
         for (let i = 0; i < n; i++) {
           const pd = st.distance + rr(rng, -70, 70);
           const p = place(pd, side * rr(rng, ROAD.halfWidth + 0.6, ROAD.halfWidth + ROAD.sidewalk - 0.4));
-          people.add(p.x, 0.18, p.z, rng() * Math.PI * 2, 1, rr(rng, 0.92, 1.08), 1, pick(rng, CLOTHES));
+          // kind = body variant (CROWD_VARIANTS in humanModel.ts); colours are picked when drawn.
+          const h = rr(rng, 0.93, 1.06);
+          people.add(p.x, 0.18, p.z, rng() * Math.PI * 2, h, h, h, undefined, undefined, Math.floor(rng() * PEOPLE_VARIANTS));
         }
       }
     }
