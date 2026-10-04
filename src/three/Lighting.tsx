@@ -16,6 +16,7 @@ import {
   Vector3,
 } from "three";
 import { useScene } from "./SceneContext.tsx";
+import { snapShadowCentre } from "./shadowSnap.ts";
 import { damp, lerp } from "../utils/interpolation.ts";
 import type { TimeOfDay, Weather } from "../simulation/store.ts";
 
@@ -114,6 +115,9 @@ export interface LightingProps {
   dusk?: boolean;
 }
 
+/** Width of the area the sun's shadow map covers (metres). */
+const SHADOW_EXTENT = 150;
+
 const DUSK_SUN = new Vector3(-0.93, 0.16, 0.33).normalize();
 const DUSK_COLOR = new Color("#ffb47a");
 
@@ -161,7 +165,7 @@ export function Lighting({ timeOfDay, weather, shadows, shadowMapSize, mapMode, 
   }, [scene, target, sky]);
 
   const tmp = useMemo(
-    () => ({ top: new Color(), horizon: new Color(), a: new Color(), b: new Color(), moonDir: new Vector3(0.3, 0.8, -0.5).normalize() }),
+    () => ({ top: new Color(), horizon: new Color(), a: new Color(), b: new Color(), moonDir: new Vector3(0.3, 0.8, -0.5).normalize(), centre: new Vector3() }),
     [],
   );
 
@@ -222,8 +226,10 @@ export function Lighting({ timeOfDay, weather, shadows, shadowMapSize, mapMode, 
         s.color.copy(DUSK_COLOR);
       }
       const dir = dusk ? DUSK_SUN : n > 0.5 ? tmp.moonDir : env.sunDirection;
-      s.position.copy(pose.center).addScaledVector(dir, 260);
-      target.position.copy(pose.center);
+      // Follow the train, but only in whole shadow texels so shadows don't shimmer.
+      snapShadowCentre(pose.center, dir, SHADOW_EXTENT / shadowMapSize, tmp.centre);
+      s.position.copy(tmp.centre).addScaledVector(dir, 260);
+      target.position.copy(tmp.centre);
       s.target = target;
       s.castShadow = shadows && c < 0.8 && !mapMode;
     }
@@ -245,10 +251,10 @@ export function Lighting({ timeOfDay, weather, shadows, shadowMapSize, mapMode, 
         castShadow={shadows}
         shadow-mapSize-width={shadowMapSize}
         shadow-mapSize-height={shadowMapSize}
-        shadow-camera-left={-75}
-        shadow-camera-right={75}
-        shadow-camera-top={75}
-        shadow-camera-bottom={-75}
+        shadow-camera-left={-SHADOW_EXTENT / 2}
+        shadow-camera-right={SHADOW_EXTENT / 2}
+        shadow-camera-top={SHADOW_EXTENT / 2}
+        shadow-camera-bottom={-SHADOW_EXTENT / 2}
         shadow-camera-near={20}
         shadow-camera-far={600}
         shadow-bias={-0.0004}
