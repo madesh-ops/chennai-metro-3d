@@ -94,3 +94,26 @@ test("the cab interior frame stays inside the nose shell", () => {
     assert.ok(x < faceX(y, z) - 0.02, `frame vertex at y ${y.toFixed(2)} z ${z.toFixed(2)} pokes out (${x.toFixed(3)} vs ${faceX(y, z).toFixed(3)})`);
   }
 });
+
+test("the roof band is one colour along the whole car (no diagonal split)", () => {
+  for (const car of [dmc, tc]) {
+    const pos = car.body.getAttribute("position");
+    const nor = car.body.getAttribute("normal");
+    const col = car.body.getAttribute("color");
+    const blue = new Color(LIVERY.blue).getHexString();
+    const roof = new Color(LIVERY.roof).getHexString();
+    const c = new Color();
+    for (let i = 0; i < pos.count; i += 3) {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let k = 0; k < 3; k++) {
+        lo = Math.min(lo, pos.getY(i + k));
+        hi = Math.max(hi, pos.getY(i + k));
+      }
+      // Outer roof strips only (not end caps, not the ceiling side).
+      if (lo < 3.18 || nor.getY(i) < 0 || Math.abs(nor.getX(i)) > 0.5) continue;
+      c.fromBufferAttribute(col, i);
+      assert.equal(c.getHexString(), hi <= 3.701 ? blue : roof, `roof strip ${lo.toFixed(2)}–${hi.toFixed(2)}`);
+    }
+  }
+});

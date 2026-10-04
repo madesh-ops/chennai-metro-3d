@@ -51,6 +51,8 @@ const PANEL_IN = W - 0.07;
 const WINDOW_BOTTOM = 1.9;
 const WINDOW_TOP = 3.0;
 const BAND_TOP = 3.28;
+/** Top of the blue cantrail band (a roof profile point). */
+const ROOF_BAND_TOP = 3.7;
 const DOOR_TOP = 3.05;
 const DOOR_HALF = 0.72;
 const CAB = 2.3;
@@ -134,17 +136,20 @@ function paintBody(g: BufferGeometry): BufferGeometry {
     c.set(0, 0, 0);
     n.set(0, 0, 0);
     let minY = Infinity;
+    let maxY = -Infinity;
     for (let k = 0; k < 3; k++) {
       c.add(v.fromBufferAttribute(pos, i + k));
       minY = Math.min(minY, v.y);
+      maxY = Math.max(maxY, v.y);
       n.add(v.fromBufferAttribute(nor, i + k));
     }
     c.divideScalar(3);
     n.normalize();
     let colour: Color;
     if (minY >= 3.18 - 1e-3) {
-      // Roof: blue cantrail band, grey top, light ceiling side.
-      colour = n.y < -0.5 ? C.lining : c.y < 3.62 ? C.blue : C.roof;
+      // Roof: blue cantrail band up to the 3.7 m profile point, grey top, light ceiling side.
+      // Judged by the triangle's top edge so both halves of a long roof strip match.
+      colour = n.y < -0.5 ? C.lining : maxY <= ROOF_BAND_TOP + 1e-3 ? C.blue : C.roof;
     } else if (Math.abs(n.z) > 0.5) {
       colour = Math.abs(c.z) > PANEL_IN - 0.01 && n.z * c.z > 0 ? C.side : C.lining;
     } else if (Math.abs(n.x) > 0.5) {
