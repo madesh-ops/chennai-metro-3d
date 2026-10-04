@@ -23,6 +23,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Same npm as the one that wrote package-lock.json (npm 10 resolves the
+      # optional WebAssembly helpers differently and rejects the lock file).
+      - run: npm install -g npm@11.6.2
       - run: npm ci
       - run: npm test
       - name: Static export
