@@ -9,6 +9,8 @@ You can watch from five cameras, by day or night, in sun or rain.
 - **₹0 to run.** No API keys and no paid services. Everything runs client-side from local JSON data, with procedural textures and the browser's own speech synthesis.
 - **Data first.** Every real-world fact is sourced in `src/data/*.json`. Every approximation is labelled as one (see [Data](#data)).
 
+**Live:** https://madesh-ops.github.io/chennai-metro-3d/
+
 ## Run it
 
 ```bash
@@ -22,6 +24,7 @@ Other scripts:
 | Command | What it does |
 | --- | --- |
 | `npm run build && npm start` | Production build and server |
+| `npm run build:pages` / `npm run preview:pages` | Static export for GitHub Pages (served under `/chennai-metro-3d/`) and a local preview of it. Pushing to `main` deploys automatically via `.github/workflows/pages.yml` |
 | `npm test` | Simulation tests: route model, stop accuracy, speed limits, playback (Node test runner) |
 | `npm run lint` | ESLint (Next.js core-web-vitals + TypeScript) |
 | `npm run typecheck` | `tsc --noEmit` |
