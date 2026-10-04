@@ -6,6 +6,8 @@ export type CameraMode = "cinematic" | "driver" | "passenger" | "map" | "free";
 export type TimeOfDay = "day" | "night";
 export type Weather = "clear" | "cloudy" | "rain";
 export type Quality = "high" | "medium" | "low";
+/** How busy trains and platforms are; "auto" follows the local clock's peak hours. */
+export type CrowdLevel = "auto" | "light" | "busy" | "packed";
 
 export const CAMERA_MODES: { id: CameraMode; label: string; key: string }[] = [
   { id: "cinematic", label: "Cinematic", key: "1" },
@@ -27,6 +29,10 @@ export interface Settings {
   trainSound: boolean;
   /** 0..1 */
   trainVolume: number;
+  /** Speak announcements in Tamil as well as English (Tamil voice when the browser has one). */
+  announceTamil: boolean;
+  /** Passengers in the cars and on platforms. */
+  crowd: CrowdLevel;
   weatherEffects: boolean;
   shadows: boolean;
   traffic: boolean;
@@ -69,6 +75,8 @@ function initialSettings(): Settings {
     streetVolume: 0.6,
     trainSound: true,
     trainVolume: 0.8,
+    announceTamil: true,
+    crowd: "auto",
     weatherEffects: true,
     shadows: !lowEnd,
     traffic: true,

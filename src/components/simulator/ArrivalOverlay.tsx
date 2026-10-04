@@ -45,10 +45,13 @@ export function ArrivalOverlay({
   engine,
   snap,
   autoplayBlocked,
+  summaryShown = false,
 }: {
   engine: SimulationEngine;
   snap: SimulationState;
   autoplayBlocked: boolean;
+  /** The JourneySummary card handles the finished state; don't draw the plain arrival screen. */
+  summaryShown?: boolean;
 }) {
   const stops = engine.journey.stops;
   const current = stops[snap.currentStationIndex]?.station;
@@ -71,6 +74,8 @@ export function ArrivalOverlay({
       </div>
     );
   }
+
+  if (snap.finished && summaryShown) return null;
 
   if (snap.finished && current) {
     const reverse = `/simulator?from=${engine.journey.to.id}&to=${engine.journey.from.id}`;

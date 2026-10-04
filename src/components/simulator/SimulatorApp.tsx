@@ -9,6 +9,9 @@ import { ControlBar } from "./ControlBar";
 import { ArrivalAnnouncer, ArrivalOverlay } from "./ArrivalOverlay";
 import { SettingsPanel } from "./SettingsPanel";
 import { FreeCameraPad } from "./FreeCameraPad";
+import { PassengerPad } from "./PassengerPad";
+import { TicketCard } from "./TicketCard";
+import { JourneySummary } from "./JourneySummary";
 import { LoadingScreen, type LoadProgress } from "./LoadingScreen";
 import { MobileMenu, MobileSheet } from "./MobileSheet";
 import { FallbackView } from "./FallbackView";
@@ -22,6 +25,7 @@ import { useEngineLoop, useSimulation } from "../../hooks/useSimulation";
 import { useWebGL } from "../../hooks/useWebGL";
 import { useAnnouncements } from "../../hooks/useAnnouncements";
 import { useTrainSounds } from "../../hooks/useTrainSounds";
+import { useCabinSounds } from "../../hooks/useCabinSounds";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import type { LoadKey } from "../../three/SimulatorScene";
 
@@ -77,11 +81,13 @@ function Simulator({ engine }: { engine: SimulationEngine }) {
 
   useEngineLoop(engine);
   const snap = useSimulation(engine);
-  useAnnouncements(engine, settings.audio);
+  useAnnouncements(engine, settings.audio, settings.announceTamil);
 
   const use3d = webgl === "supported" && !sceneFailed;
   // Driver / Passenger only; the hook checks the camera mode itself.
   useTrainSounds(engine, { enabled: use3d && settings.trainSound, volume: settings.trainVolume });
+  // Air-conditioning hum and door chimes, in the Passenger camera only.
+  useCabinSounds(engine, { enabled: use3d && settings.trainSound, volume: settings.trainVolume });
   const loaded = webgl === "checking" ? false : use3d ? progress.render >= 1 : true;
 
   // Watchdog: if the 3D scene hasn't finished after a while, offer the 2D map
@@ -181,9 +187,12 @@ function Simulator({ engine }: { engine: SimulationEngine }) {
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         corridor={engine.route.route.name}
       />
-      <ArrivalOverlay engine={engine} snap={snap} autoplayBlocked={settings.reducedMotion} />
+      <ArrivalOverlay engine={engine} snap={snap} autoplayBlocked={settings.reducedMotion} summaryShown />
+      <TicketCard engine={engine} snap={snap} />
+      <JourneySummary engine={engine} snap={snap} />
       <ArrivalAnnouncer engine={engine} snap={snap} />
       {use3d && loaded && <FreeCameraPad />}
+      {use3d && loaded && <PassengerPad />}
       <ControlBar engine={engine} snap={snap} />
       <MobileSheet engine={engine} snap={snap} />
       <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />

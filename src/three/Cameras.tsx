@@ -2,7 +2,7 @@
 
 import { OrbitControls } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { MOUSE, Matrix4, type PerspectiveCamera, Quaternion, Spherical, TOUCH, Vector3 } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useScene } from "./SceneContext.tsx";
@@ -10,6 +10,7 @@ import { DRIVER_EYE } from "./trainModel.ts";
 import { TRAIN } from "./layout.ts";
 import { clamp, easeInOutCubic } from "../utils/interpolation.ts";
 import { freeCameraInput } from "./freeCamera.ts";
+import { dragLook, passengerLook, settleLook, zoomLook, type PassengerSpot } from "./passengerLook.ts";
 import { useViewStore, type CameraMode } from "../simulation/store.ts";
 import type { ArrivalPhase } from "../simulation/types.ts";
 
@@ -34,6 +35,20 @@ const MODE_LENS: Record<CameraMode, { fov: number; near: number; far: number }> 
   passenger: { fov: 68, near: 0.05, far: 7000 },
   map: { fov: 40, near: 40, far: 90000 },
   free: { fov: 48, near: 0.3, far: 30000 },
+};
+
+/**
+ * Passenger spots in the middle car, car-local: along (+ = forward), lateral
+ * (+ = right of travel; the platform side is the left), eye height above the
+ * floor, and the resting look direction (along, lateral) with a slight pitch.
+ */
+const PASSENGER_SPOT_POSE: Record<PassengerSpot, { along: number; lateral: number; eye: number; look: [number, number]; pitch: number }> = {
+  // Seated on the right-hand bench, looking across at the platform-side windows.
+  window: { along: -1.6, lateral: 0.78, eye: 1.22, look: [1.6, -6], pitch: -0.05 },
+  // Standing just inside a platform-side door (door at x = -2.85), facing it.
+  doors: { along: -2.85, lateral: 0.05, eye: 1.62, look: [0, -6], pitch: -0.08 },
+  // At the rear end of the car, looking down its length towards the front.
+  end: { along: -10.1, lateral: 0.0, eye: 1.62, look: [6, 0], pitch: -0.06 },
 };
 
 /** Free camera limits, shared by the mouse/touch controls and the on-screen pad. */
@@ -70,6 +85,8 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
   const size = useThree((s) => s.size);
   const controls = useRef<OrbitControlsImpl>(null);
   const freeMode = useViewStore((v) => v.cameraMode === "free");
+  const passengerMode = useViewStore((v) => v.cameraMode === "passenger");
+  const gl = useThree((s) => s.gl);
 
   const st = useRef({
     mode: null as CameraMode | null,
@@ -83,6 +100,7 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
     lastCenter: new Vector3(),
     time: 0,
     orbitBase: 0,
+    passengerSpot: passengerLook.spot,
   });
   const tmp = useMemo(
     () => ({
@@ -106,6 +124,75 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
     }),
     [],
   );
+
+  // Passenger look-around: drag (mouse / one finger) turns the head, wheel and
+  // two-finger pinch zoom. Attached only while the passenger camera is active.
+  useEffect(() => {
+    if (!passengerMode || hero) return;
+    const el = gl.domElement;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinch = 0;
+    const prevTouch = el.style.touchAction;
+    el.style.touchAction = "none";
+    const down = (e: PointerEvent) => {
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        pinch = Math.hypot(a.x - b.x, a.y - b.y);
+      }
+    };
+    const move = (e: PointerEvent) => {
+      const prev = pointers.get(e.pointerId);
+      if (!prev) return;
+      const cur = { x: e.clientX, y: e.clientY };
+      pointers.set(e.pointerId, cur);
+      if (pointers.size === 1) {
+        dragLook(cur.x - prev.x, cur.y - prev.y, el.clientHeight);
+      } else if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch > 0) zoomLook((pinch - d) * 0.08);
+        pinch = d;
+      }
+    };
+    const up = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = 0;
+    };
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomLook(e.deltaY * 0.02);
+    };
+    el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+      el.removeEventListener("wheel", wheel);
+      el.style.touchAction = prevTouch;
+    };
+  }, [passengerMode, hero, gl]);
+
+  // Dev-only probe for scripted checks.
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    const w = window as unknown as { __cm3dPassengerLook?: () => unknown };
+    w.__cm3dPassengerLook = () => ({ ...passengerLook, fovNow: camera.fov });
+    return () => {
+      delete w.__cm3dPassengerLook;
+    };
+  }, [camera]);
 
   const startTransition = (dur: number) => {
     const s = st.current;
@@ -162,6 +249,12 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
       s.mode = mode;
       s.shot = "chase";
       s.shotTime = 0;
+      if (mode === "passenger") {
+        // Enter at rest, at the current spot (the mode glide covers the move).
+        passengerLook.yaw = 0;
+        passengerLook.pitch = 0;
+        s.passengerSpot = passengerLook.spot;
+      }
     }
 
     const lens = MODE_LENS[mode];
@@ -335,17 +428,37 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
       const car = pose.cars[1];
       const cf = tmp.cf.set(Math.cos(car.yaw), 0, -Math.sin(car.yaw));
       const cr = tmp.cr.set(-cf.z, 0, cf.x);
+      // Entering passenger mode starts at rest; a new spot glides there.
+      if (s.passengerSpot !== passengerLook.spot) {
+        s.passengerSpot = passengerLook.spot;
+        startTransition(1.0);
+      }
+      const spot = PASSENGER_SPOT_POSE[passengerLook.spot];
       tmp.pos
         .copy(car.position)
-        .addScaledVector(cf, -1.6)
-        .addScaledVector(cr, 0.78)
-        .add(tmp.v.set(0, TRAIN.floor + 1.22, 0));
-      tmp.look.copy(tmp.pos).addScaledVector(cr, -6).addScaledVector(cf, 1.6).add(tmp.v.set(0, -0.3, 0));
+        .addScaledVector(cf, spot.along)
+        .addScaledVector(cr, spot.lateral)
+        .add(tmp.v.set(0, TRAIN.floor + spot.eye, 0));
+      settleLook(dt, performance.now(), reducedMotion);
+      // Resting direction in the car frame, turned by yaw about the vertical and tilted by pitch.
+      const bx = cf.x * spot.look[0] + cr.x * spot.look[1];
+      const bz = cf.z * spot.look[0] + cr.z * spot.look[1];
+      const bl = Math.hypot(bx, bz) || 1;
+      const hx = bx / bl;
+      const hz = bz / bl;
+      const cy = Math.cos(passengerLook.yaw);
+      const sy = Math.sin(passengerLook.yaw);
+      // Rotate (hx, hz) counter-clockwise seen from above (+ yaw = turn left).
+      const dx = hx * cy + hz * sy;
+      const dz = -hx * sy + hz * cy;
+      const p = spot.pitch + passengerLook.pitch;
+      tmp.look.copy(tmp.pos).add(tmp.v.set(dx * Math.cos(p) * 6, Math.sin(p) * 6, dz * Math.cos(p) * 6));
       if (cameraShake && !reducedMotion) {
         const k = Math.min(1, pose.speed / 20);
         tmp.pos.y += Math.sin(s.time * 13) * 0.004 * k;
         tmp.pos.addScaledVector(cf, Math.sin(s.time * 1.7) * 0.015 * k);
       }
+      desiredFov = passengerLook.fov;
       lookFrom(tmp.pos, tmp.look);
     } else if (mode === "map") {
       const b = route.bounds;

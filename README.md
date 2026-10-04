@@ -64,6 +64,8 @@ If loading takes longer than 12 seconds, the page says so, explains the likely c
 - **Street sounds:** in the Cinematic and Free cameras, a synthesised road hum, pass-bys of the nearest vehicles (with Doppler) and the occasional horn. It fades and muffles as the camera rises or zooms out, and dips during announcements. On/off and volume are in Settings.
 - **Train sounds:** in the Driver and Passenger cameras, recorded departure, running (looped) and braking sounds. The braking sound ends exactly as the train halts, and all three stay in sync at every playback speed. On/off and volume are in Settings.
 - **Landmarks and street life:** real public landmarks near the line (temples with gopurams, Porur Lake, the government hospital, bus stands and the metro depot) as stylised models with English and Tamil name boards, and shopfronts with invented Chennai-style names that light up at night.
+- **Passenger experience:** in the Passenger camera, drag to look around (pinch or scroll to zoom) and switch between a window seat, standing by the doors, and the car end. Inside the cars: amber LED next-station displays and a lit route map in English and Tamil, passengers by crowd level (Auto follows peak hours), the leading car as the women's coach, grab straps that swing under braking, and cabin sounds (AC hum, door chimes). Announcements are spoken in English then Tamil (when the browser has a Tamil voice).
+- **Ticket and fare:** a mobile QR ticket card at the start (CMRL distance-band fare with the 20% digital discount; Singara Chennai card) and a journey summary at the end.
 - **Station sequence:** "Next station" card with countdown → name in English and Tamil → *Doors opening…* → dwell → *Doors closing…* → depart. Optional chime and spoken announcement via `speechSynthesis`.
 - **Controls:** play/pause, 0.5×/1×/2×/4×, a scrubbable timeline, next station, speed and distance.
 - **Environment:** day/night and clear/cloudy/rain, all blended smoothly; street, building, station and train lighting at night.
@@ -123,6 +125,9 @@ Verified on **3 Oct 2026**. Full provenance is on `/about`.
 | Line 5 viaduct leaving the double-decker after Porur Junction (towards Mugalivakkam) | Approximate: path traced from satellite imagery; descent to normal rail level assumed. Drawn without trains (Line 5 is under construction) |
 | MGR Flyover on Mount–Poonamallee Road at Porur Junction (505 m, 4 lanes, opened 25 Jun 2017), Kundrathur Main Road | Length, lanes and opening verified; route along Mount–Poonamallee Road traced from satellite imagery (shares the metro corridor west of the junction, then veers east-south-east while the metro turns up Arcot Road); width assumed; height drawn lower than real so buses clear the metro's steel portal beams |
 | Nexus Vijaya Mall, Kamala Cinemas (Vadapalani) | Approximate positions traced from satellite imagery supplied by the project owner; stylised models from reference photos; hoardings and film posters invented |
+| Fare bands (₹10 up to 2 km, ₹20 up to 5, ₹30 up to 12, ₹40 up to 21, ₹50 beyond) | Approximate (passenger guides; CMRL's fare page was unavailable); matches the published Line 4 range ₹10–40. 20% QR / NCMC discount verified (CMRL) |
+| Women's coach (first coach in the direction of travel) | Assumed for Line 4 (CMRL reserves women's coaches; not yet published for the 3-car trains) |
+| Crowd levels, in-car displays, film posters, hoardings | Illustrative |
 | Shop signboards | Invented names (English + Tamil); real chains and brands are excluded |
 | Livery, interior, buildings, traffic | Stylised / procedural |
 

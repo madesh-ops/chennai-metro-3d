@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { ACESFilmicToneMapping, SRGBColorSpace } from "three";
 import { SceneContext, createTrafficState, createTrainPose, type SceneContextValue } from "./SceneContext.tsx";
 import { createSceneEnv } from "./env.ts";
+import { CabinDisplays } from "./CabinDisplays.tsx";
 import { TrainPoseDriver, Train, type TrainMotion } from "./Train.tsx";
 import { Lighting } from "./Lighting.tsx";
 import { Ground } from "./Ground.tsx";
@@ -195,6 +196,7 @@ export default function SimulatorScene({ engine, onProgress, onContextLost }: Si
           getPlaybackSpeed={() => engine.clock.speed}
         />
         <Train destination={engine.journey.to.name} lineColour={route.line.colour} />
+        <CabinDisplays engine={engine} />
         <Rain count={RAIN_DROPS[settings.quality]} enabled={settings.weatherEffects} />
         <MapOverlay highlightIds={[engine.journey.from.id, engine.journey.to.id]} />
         <CameraRig reducedMotion={settings.reducedMotion} cameraShake={settings.cameraShake} getArrival={getArrival} />

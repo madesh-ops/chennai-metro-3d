@@ -36,6 +36,10 @@ export interface RouteSummary {
   reportedJourneyMinutes: number;
   fareMin: number;
   fareMax: number;
+  /** Distance-band fare chart (see simulation/fares.ts) and the digital-ticket discount. */
+  fareSlabs: { upToKm: number | null; fare: number }[];
+  fareBandsStatus: string;
+  digitalDiscountPercent: number | null;
   lastVerified: string;
   stations: StationSummary[];
   stopIds: string[];

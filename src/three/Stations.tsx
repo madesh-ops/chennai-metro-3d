@@ -25,6 +25,9 @@ import { ensureFontsLoaded, makeConcreteTexture, makeRadialTexture, makeStationS
 import { composeMatrix } from "../utils/geometry.ts";
 import { mulberry32, range as rr } from "../utils/random.ts";
 import type { StationModel } from "../simulation/RouteController.ts";
+import { crowdFactor } from "../simulation/crowd.ts";
+import { useViewStore } from "../simulation/store.ts";
+import { useHour } from "./CabinPeople.tsx";
 
 export interface StationSignalState {
   /** Station id where our train currently holds a red signal, if any. */
@@ -228,6 +231,11 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     return mesh;
   }, [inRange, alignment, params]);
 
+  // Crowd level (setting, or the local clock's peaks): quantised so the clock rarely rebuilds.
+  const crowd = useViewStore((st) => st.settings.crowd);
+  const hour = useHour();
+  const crowdLevel = Math.round(crowdFactor(crowd, hour + 0.5) * 10) / 10;
+
   // People waiting on served platforms; barricades on unopened ones.
   const extras = useMemo(() => {
     const rng = mulberry32(77);
@@ -236,7 +244,9 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     const p = { x: 0, z: 0 };
     const m = new Matrix4();
     const y = params.railLevel + params.platformHeight;
-    const peopleCount = quality === "low" ? 0 : quality === "medium" ? 7 : 12;
+    // Midday "auto" (0.5) keeps the old counts; "packed" doubles them.
+    const base = quality === "low" ? 0 : quality === "medium" ? 7 : 12;
+    const peopleCount = base ? Math.max(1, Math.round(base * 2 * crowdLevel)) : 0;
     let people: InstancedMesh | null = null;
     if (peopleCount && served.length) {
       const geo = new CapsuleGeometry(0.22, 1.1, 2, 6);
@@ -281,7 +291,19 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
       barricades.computeBoundingSphere();
     }
     return { people, barricades };
-  }, [inRange, alignment, params, quality]);
+  }, [inRange, alignment, params, quality, crowdLevel]);
+  // Rebuilt when the crowd changes, so free the old meshes.
+  useEffect(
+    () => () => {
+      for (const mesh of [extras.people, extras.barricades]) {
+        if (!mesh) continue;
+        mesh.geometry.dispose();
+        (mesh.material as MeshStandardMaterial).dispose();
+        mesh.dispose();
+      }
+    },
+    [extras],
+  );
 
   // Departure signals: one per track at each platform's leaving end.
   const signals = useMemo(() => {

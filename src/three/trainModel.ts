@@ -94,9 +94,59 @@ function intervalsWithout(x0: number, x1: number, holes: number[], half: number)
   return out;
 }
 
+const carDoors = (kind: CarKind) => (kind === "DMC" ? [-8.6, -3.2, 2.2, 7.3] : [-8.55, -2.85, 2.85, 8.55]);
+
+/** Interior layout in car-local space, shared by the passengers and grab straps. */
+export interface CabinLayout {
+  kind: CarKind;
+  /** Passenger saloon extent along the car (the cab is excluded). */
+  xRear: number;
+  xFront: number;
+  /** Door centres along x (doors on both sides). */
+  doors: number[];
+  doorHalf: number;
+  /** Bench seat runs between doors, per side (+1 right / -1 left). */
+  seatRuns: { x0: number; x1: number; side: 1 | -1 }[];
+  /** Floor top, seat cushion top, and |z| of a seated passenger's hips. */
+  floorY: number;
+  seatY: number;
+  seatZ: number;
+  /** Overhead grab rails: height and |z|. */
+  railY: number;
+  railZ: number;
+  /** Inner half-width of the saloon. */
+  innerHalf: number;
+}
+
+export function cabinLayout(kind: CarKind): CabinLayout {
+  const xFront = kind === "DMC" ? HALF - CAB : HALF;
+  const xRear = -HALF;
+  const doors = carDoors(kind);
+  const seatRuns: CabinLayout["seatRuns"] = [];
+  for (const side of [-1, 1] as const) {
+    for (const [a, b] of intervalsWithout(xRear, xFront, doors, DOOR_HALF)) {
+      if (b - a > 1.4) seatRuns.push({ x0: a + 0.25, x1: b - 0.25, side });
+    }
+  }
+  return {
+    kind,
+    xRear,
+    xFront,
+    doors,
+    doorHalf: DOOR_HALF,
+    seatRuns,
+    floorY: 1.13,
+    seatY: 1.6,
+    seatZ: PANEL_IN - 0.26,
+    railY: 2.93,
+    railZ: 0.62,
+    innerHalf: PANEL_IN,
+  };
+}
+
 export function buildCar(kind: CarKind): CarGeometry {
   const isCab = kind === "DMC";
-  const doors = isCab ? [-8.6, -3.2, 2.2, 7.3] : [-8.55, -2.85, 2.85, 8.55];
+  const doors = carDoors(kind);
   const xFront = isCab ? HALF - CAB : HALF;
   const xRear = -HALF;
 

@@ -21,6 +21,8 @@ import { useScene } from "./SceneContext.tsx";
 import { BOGIE_OFFSET, NOSE_TIP, buildCar, type CarGeometry } from "./trainModel.ts";
 import { TRAIN } from "./layout.ts";
 import { makeDestinationTexture } from "./textures.ts";
+import { CabinPeople, WomenOnlyDecals } from "./CabinPeople.tsx";
+import { Straps } from "./Straps.tsx";
 import { useViewStore } from "../simulation/store.ts";
 
 export interface TrainMotion {
@@ -258,6 +260,10 @@ function Car({
         frustumCulled={false}
       />
       <instancedMesh ref={wheels} args={[geo.wheel, mats.dark, geo.wheelPositions.length]} frustumCulled={false} />
+      {/* Inside: passengers and grab straps; the leading car is the women's coach. */}
+      <CabinPeople kind={geo.kind} carIndex={index} women={leading} />
+      <Straps kind={geo.kind} carIndex={index} />
+      {leading && <WomenOnlyDecals kind={geo.kind} />}
       {/* Lights stay mounted (intensity animated) so toggling night never recompiles shaders. */}
       <pointLight ref={interior} position={[0, 2.7, 0]} distance={13} decay={2} intensity={1} color="#fff3df" />
       {leading && (

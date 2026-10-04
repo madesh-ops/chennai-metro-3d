@@ -248,7 +248,16 @@
       "status": "stylised",
       "note": "Body colours are a stylised interpretation, not the official livery."
     },
-    "source": "metrorailguy-stock"
+    "source": "metrorailguy-stock",
+    "womensCoach": {
+      "coach": "first in the direction of travel",
+      "status": "assumed",
+      "note": "Chennai Metro reserves women-only coaches (first-class coaches were converted to women's coaches from 23 Nov 2020), and passenger guides describe the first coach in the direction of travel as reserved for women. Not yet published for the 3-car Line 4 trains, so applied here as an assumption.",
+      "sources": [
+        "LiveChennai — 'More women's coaches in Chennai Metro trains' (Nov 2020): https://www.livechennai.com/detailnews.asp?newsid=56132",
+        "TrackMyMetro — Chennai Metro guide (first coach in the direction of travel reserved for women): https://trackmymetro.com/chennai-metro/"
+      ]
+    }
   },
   "operations": {
     "status": "assumed",

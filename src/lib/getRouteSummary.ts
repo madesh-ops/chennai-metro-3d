@@ -39,6 +39,9 @@ export function getRouteSummary(): RouteSummary {
     reportedJourneyMinutes: route.route.reportedJourneyMinutes,
     fareMin: route.route.fares.min,
     fareMax: route.route.fares.max,
+    fareSlabs: route.route.fares.bands?.slabs ?? [],
+    fareBandsStatus: route.route.fares.bands?.status ?? "unknown",
+    digitalDiscountPercent: route.route.fares.digitalDiscount?.percent ?? null,
     lastVerified: route.lastVerified,
     stations: route.stations.map((s) => ({
       id: s.id,

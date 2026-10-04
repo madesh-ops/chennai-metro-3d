@@ -522,3 +522,125 @@ export function makeLandmarkPanelTexture(key: string): Texture {
       return hoarding(seed);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* In-car LED displays (passenger information).                         */
+/* ------------------------------------------------------------------ */
+
+const LED_W = 1024;
+const LED_H = 160;
+const LED_AMBER = "#ffb347";
+
+/** Amber dot-matrix text strip; redraw with drawLedText(). */
+export function makeLedTextTexture(): CanvasTexture {
+  const { c } = canvas(LED_W, LED_H);
+  const tex = finish(c, false);
+  drawLedText(tex, "");
+  return tex;
+}
+
+/** Redraw an LED text strip (one line, shrunk to fit, Tamil-aware). */
+export function drawLedText(tex: CanvasTexture, text: string) {
+  const c = tex.image as HTMLCanvasElement;
+  const ctx = c.getContext("2d");
+  if (!ctx) return;
+  const f = fontFamilies();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#050505";
+  ctx.fillRect(0, 0, LED_W, LED_H);
+  ctx.fillStyle = LED_AMBER;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const tamil = /[஀-௿]/.test(text);
+  fitFont(ctx, text, tamil ? 600 : 700, tamil ? f.tamil : f.sans, tamil ? 72 : 84, 26, LED_W - 60);
+  ctx.fillText(text, LED_W / 2, LED_H / 2 + 4);
+  // Dot-matrix mask.
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  for (let y = 0; y < LED_H; y += 5) ctx.fillRect(0, y, LED_W, 1.5);
+  for (let x = 0; x < LED_W; x += 5) ctx.fillRect(x, 0, 1.5, LED_H);
+  ctx.globalCompositeOperation = "source-over";
+  tex.needsUpdate = true;
+}
+
+export interface RouteMapItem {
+  name: string;
+  /** "stop" = served, "pass" = not yet open (hollow LED). */
+  kind: "stop" | "pass";
+  state: "passed" | "current" | "ahead";
+}
+
+const MAP_W = 2048;
+const MAP_H = 192;
+
+/** Route-map strip above the doors; redraw with drawRouteMap(). */
+export function makeRouteMapTexture(): CanvasTexture {
+  const { c } = canvas(MAP_W, MAP_H);
+  const tex = finish(c, false);
+  drawRouteMap(tex, [], true, "#F2B705");
+  return tex;
+}
+
+/** Stations left to right in travel order; the current one blinks (blinkOn toggles). */
+export function drawRouteMap(tex: CanvasTexture, items: readonly RouteMapItem[], blinkOn: boolean, lineColour: string) {
+  const c = tex.image as HTMLCanvasElement;
+  const ctx = c.getContext("2d");
+  if (!ctx) return;
+  const f = fontFamilies();
+  ctx.fillStyle = "#f4f5f2";
+  ctx.fillRect(0, 0, MAP_W, MAP_H);
+  ctx.fillStyle = lineColour;
+  ctx.fillRect(0, 0, MAP_W, 10);
+  const n = items.length;
+  if (n >= 1) {
+    const pad = 70;
+    const xs = (i: number) => (n === 1 ? MAP_W / 2 : pad + ((MAP_W - 2 * pad) * i) / (n - 1));
+    const y = MAP_H / 2 + 6;
+    // Line: travelled part grey, the rest in the line colour.
+    const cur = Math.max(0, items.findIndex((it) => it.state === "current"));
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#b9bdc2";
+    ctx.beginPath();
+    ctx.moveTo(xs(0), y);
+    ctx.lineTo(xs(cur), y);
+    ctx.stroke();
+    ctx.strokeStyle = lineColour;
+    ctx.beginPath();
+    ctx.moveTo(xs(cur), y);
+    ctx.lineTo(xs(n - 1), y);
+    ctx.stroke();
+    items.forEach((it, i) => {
+      const x = xs(i);
+      const r = it.kind === "stop" ? 15 : 10;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      if (it.kind === "pass") {
+        ctx.fillStyle = "#f4f5f2";
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = it.state === "passed" ? "#c3c6ca" : "#8a9099";
+        ctx.stroke();
+      } else {
+        const lit = it.state === "ahead" || (it.state === "current" && blinkOn);
+        ctx.fillStyle = it.state === "passed" ? "#c3c6ca" : lit ? "#e53935" : "#5b1414";
+        ctx.fill();
+        if (it.state === "current") {
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = "#e53935";
+          ctx.beginPath();
+          ctx.arc(x, y, r + 9, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      // Labels alternate above and below so neighbours never collide.
+      ctx.fillStyle = it.state === "passed" ? "#9aa0a6" : it.state === "current" ? "#b71c1c" : "#1f2933";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const label = it.name.toUpperCase();
+      fitFont(ctx, label, it.state === "current" ? 800 : 600, f.sans, 24, 13, Math.min(220, ((MAP_W - 2 * pad) / Math.max(1, n - 1)) * 1.9));
+      ctx.fillText(label, x, i % 2 ? y + 48 : y - 44);
+    });
+  }
+  tex.needsUpdate = true;
+}

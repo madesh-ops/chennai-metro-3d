@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Segmented } from "../ui/Segmented";
 import { Close } from "../ui/Icons";
-import { useViewStore, type Quality } from "../../simulation/store";
+import { useViewStore, type CrowdLevel, type Quality } from "../../simulation/store";
 import { SHORTCUT_HELP } from "../../hooks/useKeyboardShortcuts";
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -146,6 +146,24 @@ export function SettingsPanel() {
             </Row>
             <Row label="Audio" hint="Chimes and spoken announcements (uses your browser's voice).">
               <OnOff label="Audio" value={settings.audio} onChange={(audio) => update({ audio })} />
+            </Row>
+            <Row label="Tamil announcements" hint="Speak each announcement in Tamil after English (needs a Tamil voice in your browser; the displays always show both).">
+              <OnOff label="Tamil announcements" value={settings.announceTamil} onChange={(announceTamil) => update({ announceTamil })} />
+            </Row>
+            <Row label="Crowd" hint="Passengers in the train and on platforms. Auto follows your clock's peak hours.">
+              <Segmented<CrowdLevel>
+                label="Crowd"
+                value={settings.crowd}
+                onChange={(crowd) => update({ crowd })}
+                size="sm"
+                className="bg-surface-2"
+                options={[
+                  { value: "auto", label: "Auto" },
+                  { value: "light", label: "Light" },
+                  { value: "busy", label: "Busy" },
+                  { value: "packed", label: "Packed" },
+                ]}
+              />
             </Row>
             <Row label="Street sounds" hint="Traffic and horns in the Cinematic and Free cameras. Quieter as you zoom out.">
               <OnOff label="Street sounds" value={settings.streetSound} onChange={(streetSound) => update({ streetSound })} />

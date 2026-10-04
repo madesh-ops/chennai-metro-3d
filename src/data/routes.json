@@ -103,7 +103,40 @@
           }
         ],
         "note": "Intermediate fares (Rs 20–30) were reported by distance band; CMRL is to publish the full chart after inauguration.",
-        "source": "dtnext-fares"
+        "source": "dtnext-fares",
+        "bands": {
+          "status": "approximate",
+          "note": "CMRL's distance-based fare chart (paper / token fares). Consistent with the published Line 4 range of Rs 10–40 for its 14.64 km; CMRL's own fare page could not be retrieved, so the chart is taken from fare guides that agree with each other.",
+          "source": "TrackMyMetro — Chennai Metro fare table (https://trackmymetro.com/chennai-metro/); RailTravels — Chennai Metro Rail fare chart (https://railtravels.org/chennai-metro-rail-fare-chart/)",
+          "slabs": [
+            {
+              "upToKm": 2,
+              "fare": 10
+            },
+            {
+              "upToKm": 5,
+              "fare": 20
+            },
+            {
+              "upToKm": 12,
+              "fare": 30
+            },
+            {
+              "upToKm": 21,
+              "fare": 40
+            },
+            {
+              "upToKm": null,
+              "fare": 50
+            }
+          ]
+        },
+        "digitalDiscount": {
+          "percent": 20,
+          "status": "verified",
+          "appliesTo": "Mobile QR tickets (single, return, group, trip passes) via the CMRL app, WhatsApp, Paytm and PhonePe, and the Singara Chennai (NCMC) card. Not paper QR tickets bought at the counter.",
+          "source": "CMRL on X — 'CMRL offers a 20% discount on Metro Travel Card, Mobile QR Code ticketing … and NCMC Card' (https://x.com/cmrlofficial/status/1868879444649074806); DT Next — Singara Chennai card (https://www.dtnext.in/news/chennai/cmrl-introduces-improved-method-of-availing-singara-chennai-card-809423)"
+        }
       }
     }
   ]

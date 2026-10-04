@@ -121,8 +121,17 @@ export interface RawRoute {
     examples: { from: string; to: string; fare: number }[];
     note: string;
     source: string;
+    /** Distance-band chart: a fare per slab up to `upToKm` (null = beyond the last). */
+    bands?: { status: string; note: string; source: string; slabs: FareSlab[] };
+    /** Discount on digital tickets and the Singara Chennai (NCMC) card. */
+    digitalDiscount?: { percent: number; status: string; appliesTo: string; source: string };
   };
   [k: string]: unknown;
+}
+
+export interface FareSlab {
+  upToKm: number | null;
+  fare: number;
 }
 
 export interface RawRoutesFile {
