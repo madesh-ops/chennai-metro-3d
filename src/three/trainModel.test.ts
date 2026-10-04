@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Box3, Color, type BufferGeometry } from "three";
 import { buildCar, DRIVER_EYE, LIVERY, NOSE_TIP } from "./trainModel.ts";
-import { faceX } from "./trainNose.ts";
+import { buildNose, faceX } from "./trainNose.ts";
 import { TRAIN } from "./layout.ts";
 
 const bounds = (g: BufferGeometry) => new Box3().setFromBufferAttribute(g.getAttribute("position") as never);
@@ -56,11 +56,12 @@ test("the shell faces outward", () => {
   assert.equal(wrong, 0);
 });
 
-test("outside of the sides is green, the saloon lining stays light", () => {
+test("outside of the sides is stainless, the saloon lining stays light", () => {
   const pos = tc.body.getAttribute("position");
   const nor = tc.body.getAttribute("normal");
   const col = tc.body.getAttribute("color");
-  const green = new Color(LIVERY.green);
+  const side = new Color(LIVERY.side);
+  const blue = new Color(LIVERY.blue);
   const lining = new Color(LIVERY.lining);
   const c = new Color();
   let out = 0;
@@ -73,11 +74,23 @@ test("outside of the sides is green, the saloon lining stays light", () => {
     c.fromBufferAttribute(col, i);
     if (Math.abs(z) > TRAIN.width / 2 - 0.001 && nz * z > 0) {
       out++;
-      assert.equal(c.getHexString(), green.getHexString(), `outside at y ${y}`);
+      assert.ok([side.getHexString(), blue.getHexString()].includes(c.getHexString()), `outside at y ${y}`);
     } else if (Math.abs(z) < TRAIN.width / 2 - 0.06 && Math.abs(z) > 1.3 && nz * z < 0) {
       inside++;
       assert.equal(c.getHexString(), lining.getHexString(), `inside at y ${y}`);
     }
   }
   assert.ok(out > 20 && inside > 20, `${out} outside, ${inside} inside`);
+});
+
+test("the cab interior frame stays inside the nose shell", () => {
+  const x0 = HALF - 2.3;
+  const { frame } = buildNose(x0);
+  const pos = frame.getAttribute("position");
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) - x0;
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    assert.ok(x < faceX(y, z) - 0.02, `frame vertex at y ${y.toFixed(2)} z ${z.toFixed(2)} pokes out (${x.toFixed(3)} vs ${faceX(y, z).toFixed(3)})`);
+  }
 });

@@ -107,7 +107,7 @@ function useTrainMaterials(lineColour: string, destination: string): TrainMateri
       });
     return {
       // Livery comes from vertex colours (trainModel.ts paintBody / trainNose.ts).
-      body: new MeshStandardMaterial({ color: "#ffffff", vertexColors: true, metalness: 0.15, roughness: 0.3 }),
+      body: new MeshStandardMaterial({ color: "#ffffff", vertexColors: true, metalness: 0.25, roughness: 0.38 }),
       dark: new MeshStandardMaterial({ color: "#23272d", roughness: 0.6, metalness: 0.2 }),
       under: new MeshStandardMaterial({ color: "#5d636b", roughness: 0.7, metalness: 0.3 }),
       glass: new MeshStandardMaterial({

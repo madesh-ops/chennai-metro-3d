@@ -7,7 +7,7 @@ import { TRAIN } from "./layout.ts";
  * trainset: a rounded, nearly upright blue face leaning back a little and
  * rolling into the roof, a wrap-around black mask holding the windscreen
  * and the amber destination display, black headlight pods at the lower
- * corners, grilles below them, a dark skirt and a coupler.
+ * corners, a grey-blue bumper with grilles, and a coupler under it.
  *
  * Car-local space (+x forward, +y up from rail top, +z right). The face is
  * a height field x = faceX(y, z) over the front-view outline: a box whose
@@ -18,7 +18,7 @@ import { TRAIN } from "./layout.ts";
 const W = TRAIN.width / 2;
 /** Bottom of the blue shell; the dark skirt is below it. */
 const SHELL_BOTTOM = 1.15;
-const SKIRT_BOTTOM = 0.8;
+const SKIRT_BOTTOM = 0.58;
 /** Section centre and half-height of the roof superellipse. */
 const YC = 2.4;
 const HY = TRAIN.roof - YC;
@@ -147,7 +147,7 @@ export function paint(g: BufferGeometry, colour: string, keepUv = false): Buffer
 
 /** The blue shell: side/roof walls from the bulkhead plus the face itself. */
 function shell(x0: number, colour: string): BufferGeometry[] {
-  const ring = outline(72);
+  const ring = outline(96);
   const M = ring.length;
   // Walls from the bulkhead to where the face starts (bottom edge = underside).
   const wp: number[] = [];
@@ -160,7 +160,7 @@ function shell(x0: number, colour: string): BufferGeometry[] {
     wi.push(a, b, a + 1, b, b + 1, a + 1);
   }
   // Face: polar grid from the outline to the centre, denser near the rolled edge.
-  const R = 18;
+  const R = 28;
   const fp: number[] = [];
   const fi: number[] = [];
   for (let r = 0; r <= R; r++) {
@@ -277,11 +277,14 @@ function slab(x0: number, x1: number, y0: number, y1: number, z0: number, z1: nu
 
 export const NOSE_COLOURS = {
   blue: "#2864ec",
-  mask: "#07090c",
+  /** Grey surround of the windscreen. */
+  mask: "#5a626c",
   pod: "#0b0d10",
-  grille: "#3f454d",
+  grille: "#2a2f36",
   logo: "#c9ced4",
-  skirt: "#2a2f36",
+  /** Lower front bumper. */
+  bumper: "#7b8794",
+  coupler: "#1c2026",
   buffer: "#eef0f2",
 };
 
@@ -308,28 +311,20 @@ export function buildNose(x0: number): NoseParts {
   const shellParts = shell(x0, C.blue);
   const extras: BufferGeometry[] = [
     // Wrap-around black mask holding the windscreen and destination display.
-    patch(x0, { zc: 0, yc: 2.62, hz: 1.27, hy: 0.84, n: 5, lift: 0.012, taper: 0.12 }, C.mask),
+    patch(x0, { zc: 0, yc: 2.62, hz: 1.24, hy: 0.84, n: 5, lift: 0.024, taper: 0.12, rings: 10, segments: 72 }, C.mask),
     // Headlight pods, lower corners.
     ...[-1, 1].map((s) => patch(x0, { zc: s * 0.97, yc: LAMP_Y, hz: 0.3, hy: 0.12, n: 4, lift: 0.014 }, C.pod)),
-    // Grilles under the pods.
-    ...[-1, 1].map((s) => patch(x0, { zc: s * 0.86, yc: 1.3, hz: 0.22, hy: 0.055, n: 8, lift: 0.01 }, C.grille)),
     // Round logo on the chin.
     patch(x0, { zc: 0, yc: LAMP_Y, hz: 0.1, hy: 0.1, n: 2, lift: 0.012 }, C.logo),
     patch(x0, { zc: 0, yc: LAMP_Y, hz: 0.07, hy: 0.07, n: 2, lift: 0.016 }, C.blue),
   ];
-  // Grille slats.
-  for (const s of [-1, 1]) {
-    for (const dy of [-0.025, 0, 0.025]) {
-      extras.push(patch(x0, { zc: s * 0.86, yc: 1.3 + dy, hz: 0.2, hy: 0.006, n: 8, lift: 0.016, rings: 1, segments: 24 }, C.pod));
-    }
-  }
-  // Dark skirt under the shell, following the face in plan.
+  // Grey-blue bumper under the shell, following the face in plan.
   const sp: number[] = [];
   const si: number[] = [];
   const plan: [number, number][] = [[0, -W]];
   for (let i = 0; i <= 24; i++) {
     const z = -W + (2 * W * i) / 24;
-    plan.push([faceX(SHELL_BOTTOM, z) - 0.03, z]);
+    plan.push([faceX(SHELL_BOTTOM, z) - 0.005, z]);
   }
   plan.push([0, W]);
   for (const [x, z] of plan) sp.push(x0 + x, SKIRT_BOTTOM, z, x0 + x, SHELL_BOTTOM, z);
@@ -338,15 +333,21 @@ export function buildNose(x0: number): NoseParts {
     const b = 2 * (j + 1);
     si.push(a, a + 1, b, b, a + 1, b + 1);
   }
-  extras.push(geometryFrom(sp, si, C.skirt));
-  // Anti-climber beam, coupler and its white buffer block.
-  const tip = x0 + faceX(SHELL_BOTTOM, 0);
-  extras.push(slab(tip - 0.2, tip + 0.06, 0.86, 1.02, -0.85, 0.85, C.skirt));
-  extras.push(slab(tip - 0.1, tip + 0.3, 0.6, 0.84, -0.2, 0.2, C.skirt));
-  extras.push(slab(tip + 0.3, tip + 0.4, 0.62, 0.82, -0.24, 0.24, C.buffer));
+  extras.push(geometryFrom(sp, si, C.bumper));
+  // Grilles on the bumper either side, slatted.
+  for (const side of [-1, 1]) {
+    const zc = side * 0.86;
+    const fx = x0 + Math.min(faceX(SHELL_BOTTOM, zc - 0.22), faceX(SHELL_BOTTOM, zc + 0.22)) - 0.005;
+    extras.push(slab(fx - 0.01, fx + 0.008, 0.9, 1.08, zc - 0.22, zc + 0.22, C.grille));
+    for (let y = 0.92; y < 1.07; y += 0.035) extras.push(slab(fx, fx + 0.016, y, y + 0.012, zc - 0.21, zc + 0.21, C.bumper));
+  }
+  // Coupler under the bumper with its white buffer plate.
+  const tip = x0 + faceX(SHELL_BOTTOM, 0) - 0.005;
+  extras.push(slab(tip - 0.3, tip + 0.1, 0.62, 0.82, -0.17, 0.17, C.coupler));
+  extras.push(slab(tip + 0.1, tip + 0.14, 0.63, 0.81, -0.2, 0.2, C.buffer));
 
-  const glass = patch(x0, { zc: 0, yc: 2.6, hz: 1.1, hy: 0.62, n: 5, lift: 0.022, taper: 0.12 }, "#ffffff");
-  const destination = patch(x0, { zc: 0, yc: 3.12, hz: 0.6, hy: 0.085, n: 10, lift: 0.03, rings: 2 }, "#ffffff", true);
+  const glass = patch(x0, { zc: 0, yc: 2.6, hz: 1.1, hy: 0.62, n: 5, lift: 0.034, taper: 0.12, rings: 10, segments: 72 }, "#ffffff");
+  const destination = patch(x0, { zc: 0, yc: 3.12, hz: 0.6, hy: 0.085, n: 10, lift: 0.042, rings: 2 }, "#ffffff", true);
   const lamps: BufferGeometry[] = [];
   for (const s of [-1, 1]) {
     lamps.push(patch(x0, { zc: s * 0.86, yc: LAMP_Y + 0.005, hz: 0.065, hy: 0.065, n: 2, lift: 0.024, rings: 2, segments: 20 }, "#ffffff"));
@@ -354,17 +355,21 @@ export function buildNose(x0: number): NoseParts {
     lamps.push(patch(x0, { zc: s * 1.2, yc: LAMP_Y - 0.02, hz: 0.03, hy: 0.03, n: 2, lift: 0.024, rings: 1, segments: 12 }, "#ffffff"));
   }
 
-  // Cab frame from the inside: windscreen pillars, console and header.
+  // Cab frame from the inside: windscreen pillars, console and header. Each piece
+  // stops short of the face at its outermost corner so nothing pokes through.
+  const inside = (y0: number, y1: number, z0: number, z1: number, gap: number) =>
+    x0 + Math.min(faceX(y0, z0), faceX(y0, z1), faceX(y1, z0), faceX(y1, z1)) - gap;
   const frame: BufferGeometry[] = [];
   for (const s of [-1, 1]) {
     for (let y = 1.95; y < 3.25; y += 0.13) {
-      const z = s * 1.14;
-      const x = x0 + faceX(y + 0.065, z) - 0.06;
-      frame.push(slab(x - 0.08, x, y, y + 0.135, z - 0.08, z + 0.08, "#23272d"));
+      const z0 = s * 1.04;
+      const z1 = s * 1.18;
+      const x = inside(y, y + 0.135, z0, z1, 0.05);
+      frame.push(slab(x - 0.08, x, y, y + 0.135, Math.min(z0, z1), Math.max(z0, z1), C.coupler));
     }
   }
-  frame.push(slab(x0 + 0.9, x0 + faceX(1.8, 0) - 0.25, 1.13, 1.82, -1.3, 1.3, "#23272d"));
-  frame.push(slab(x0 - 0.2, x0 + faceX(3.45, 0) - 0.1, 3.42, 3.5, -1.3, 1.3, "#23272d"));
+  frame.push(slab(x0 + 0.9, inside(1.13, 1.82, -1.1, 1.1, 0.12), 1.13, 1.82, -1.1, 1.1, C.coupler));
+  frame.push(slab(x0 - 0.2, inside(3.42, 3.5, -1.05, 1.05, 0.06), 3.42, 3.5, -1.05, 1.05, C.coupler));
 
   const join = (parts: BufferGeometry[], uv = false) => {
     const clean = parts.map((g) => {

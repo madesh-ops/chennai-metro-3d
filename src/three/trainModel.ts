@@ -1,7 +1,7 @@
 import { BoxGeometry, BufferAttribute, BufferGeometry, Color, CylinderGeometry, ExtrudeGeometry, Shape, Vector3 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { TRAIN } from "./layout.ts";
-import { buildNose, NOSE_DEPTH } from "./trainNose.ts";
+import { buildNose, NOSE_DEPTH, paint } from "./trainNose.ts";
 
 /**
  * Procedural metro car, built in car-local space:
@@ -9,7 +9,8 @@ import { buildNose, NOSE_DEPTH } from "./trainNose.ts";
  *
  * Dimensions follow the published Phase II trainset (3 cars, 67.8 m) with
  * assumed width/height (see tracks.json). Livery after a photo of a CMRL
- * Alstom Metropolis: blue cab and cantrail band, dark-green sides.
+ * Alstom Metropolis: blue cab and cantrail band, stainless sides with a
+ * blue stripe under the windows.
  * Side walls are assembled from panels around real window and door
  * openings so the passenger and driver cameras can see out.
  */
@@ -107,8 +108,9 @@ function bayWindows(a: number, b: number): [number, number][] {
 }
 
 export const LIVERY = {
-  green: "#2e5a47",
-  doorGreen: "#24493b",
+  /** Stainless side panels. */
+  side: "#aab0b6",
+  door: "#9ea4ab",
   blue: "#2864ec",
   roof: "#8b9198",
   lining: "#e7ebef",
@@ -117,7 +119,7 @@ export const LIVERY = {
 
 /**
  * Vertex colours for the car body from each triangle's facing: outside
- * faces green, the cantrail band blue, the roof grey, window and door
+ * faces stainless, the cantrail band blue, the roof grey, window and door
  * reveals black rubber, and everything facing into the saloon light grey.
  */
 function paintBody(g: BufferGeometry): BufferGeometry {
@@ -144,12 +146,12 @@ function paintBody(g: BufferGeometry): BufferGeometry {
       // Roof: blue cantrail band, grey top, light ceiling side.
       colour = n.y < -0.5 ? C.lining : c.y < 3.62 ? C.blue : C.roof;
     } else if (Math.abs(n.z) > 0.5) {
-      colour = Math.abs(c.z) > PANEL_IN - 0.01 && n.z * c.z > 0 ? C.green : C.lining;
+      colour = Math.abs(c.z) > PANEL_IN - 0.01 && n.z * c.z > 0 ? C.side : C.lining;
     } else if (Math.abs(n.x) > 0.5) {
-      // Car ends: outside green, inside light; elsewhere window and door reveals.
-      colour = Math.abs(c.x) > HALF - 0.12 ? (n.x * c.x > 0 ? C.green : C.lining) : C.rubber;
+      // Car ends: outside stainless, inside light; elsewhere window and door reveals.
+      colour = Math.abs(c.x) > HALF - 0.12 ? (n.x * c.x > 0 ? C.side : C.lining) : C.rubber;
     } else {
-      colour = c.y < 1.0 ? C.green : Math.abs(c.z) > PANEL_IN - 0.01 ? C.rubber : C.lining;
+      colour = c.y < 1.0 ? C.side : Math.abs(c.z) > PANEL_IN - 0.01 ? C.rubber : C.lining;
     }
     for (let k = 0; k < 3; k++) colour.toArray(col, (i + k) * 3);
   }
@@ -159,7 +161,7 @@ function paintBody(g: BufferGeometry): BufferGeometry {
 
 function paintLeaf(g: BufferGeometry): BufferGeometry {
   const nor = g.getAttribute("normal");
-  const out = new Color(LIVERY.doorGreen);
+  const out = new Color(LIVERY.door);
   const inner = new Color(LIVERY.lining);
   const edge = new Color(LIVERY.rubber);
   const col = new Float32Array(nor.count * 3);
@@ -231,6 +233,7 @@ export function buildCar(kind: CarKind): CarGeometry {
   const steel: BufferGeometry[] = [];
   const seats: BufferGeometry[] = [];
   const lights: BufferGeometry[] = [];
+  const blueStripe: BufferGeometry[] = [];
 
   for (const s of [-1, 1] as const) {
     const zo = s * W;
@@ -239,7 +242,8 @@ export function buildCar(kind: CarKind): CarGeometry {
     for (const [a, b] of intervalsWithout(xRear, xFront, doors, DOOR_HALF)) {
       body.push(box(a, b, 0.95, WINDOW_BOTTOM, za, zb));
       body.push(box(a, b, WINDOW_TOP, BAND_TOP, za, zb));
-      // Large windows with black surrounds; green piers between them.
+      // Blue stripe under the windows, then large windows with dark surrounds.
+      blueStripe.push(box(a, b, 1.66, 1.78, s * (W + 0.004), s * (W - 0.002)));
       let px = a;
       const fo = s * (W + 0.012);
       const fi = s * (W - 0.004);
@@ -359,7 +363,7 @@ export function buildCar(kind: CarKind): CarGeometry {
     }
   }
   // Leaves are drawn with local +z facing out (Train turns the left-side ones round):
-  // dark green outside, light grey inside, a tall narrow window.
+  // stainless outside, light grey inside, a tall narrow window.
   const LH = DOOR_HALF / 2;
   const LW = 0.17;
   const leafBody = paintLeaf(
@@ -377,7 +381,12 @@ export function buildCar(kind: CarKind): CarGeometry {
 
   return {
     kind,
-    body: paintBody(merge(body)),
+    body: (() => {
+      const g = mergeGeometries([paintBody(merge(body)), paint(merge(blueStripe), LIVERY.blue)], false);
+      if (!g) throw new Error("Failed to merge the car body");
+      g.computeBoundingSphere();
+      return g;
+    })(),
     dark: merge(dark),
     under: merge(under),
     glass: merge(glass),

@@ -129,7 +129,7 @@ Verified on **3 Oct 2026**. Full provenance is on `/about`.
 | Women's coach (first coach in the direction of travel) | Assumed for Line 4 (CMRL reserves women's coaches; not yet published for the 3-car trains) |
 | Crowd levels, in-car displays, film posters, hoardings | Illustrative |
 | Shop signboards | Invented names (English + Tamil); real chains and brands are excluded |
-| Train look: blue rounded cab with black windscreen mask, blue roof band, dark-green sides, after a photo of a CMRL Alstom Metropolis (the green appears to be an advertising wrap) | Stylised from a reference photo |
+| Train look: blue rounded cab, blue roof band, stainless sides with a blue stripe under the windows, after photos of CMRL Alstom Metropolis trainsets | Stylised from reference photos |
 | Interior, buildings, traffic | Stylised / procedural |
 
 As a sanity check, the spline through the published coordinates measures **14.61 km** against the official **14.64 km** (0.2 % difference).
