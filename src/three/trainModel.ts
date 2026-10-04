@@ -293,8 +293,12 @@ export function buildCar(kind: CarKind): CarGeometry {
     [W - 0.32, 3.7],
     [W - 0.06, 3.5],
     [W, BAND_TOP],
-    [W, 3.18],
-    [-W, 3.18],
+    // Close the section inside the side walls: a strip on the outer face would
+    // sit exactly on the wall panels and flicker (z-fighting) along the band.
+    [PANEL_IN, BAND_TOP],
+    [PANEL_IN, 3.18],
+    [-PANEL_IN, 3.18],
+    [-PANEL_IN, BAND_TOP],
   ];
   roofShape.moveTo(roofPts[0][0], roofPts[0][1]);
   for (const [z, y] of roofPts.slice(1)) roofShape.lineTo(z, y);

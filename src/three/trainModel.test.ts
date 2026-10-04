@@ -117,3 +117,22 @@ test("the roof band is one colour along the whole car (no diagonal split)", () =
     }
   }
 });
+
+test("no roof face lies on the outer side wall below the band (z-fighting)", () => {
+  for (const car of [dmc, tc]) {
+    const pos = car.body.getAttribute("position");
+    const nor = car.body.getAttribute("normal");
+    // Side panels own the outer face up to BAND_TOP (3.28); nothing else may share it.
+    let roofOnWall = 0;
+    for (let i = 0; i < pos.count; i += 3) {
+      let lo = Infinity;
+      let onWall = true;
+      for (let k = 0; k < 3; k++) {
+        lo = Math.min(lo, pos.getY(i + k));
+        if (Math.abs(Math.abs(pos.getZ(i + k)) - TRAIN.width / 2) > 1e-4) onWall = false;
+      }
+      if (onWall && lo >= 3.18 - 1e-3 && Math.abs(nor.getZ(i)) > 0.9) roofOnWall++;
+    }
+    assert.equal(roofOnWall, 0);
+  }
+});
