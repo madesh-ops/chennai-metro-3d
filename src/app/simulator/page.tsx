@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { SimulatorLoader } from "../../components/simulator/SimulatorLoader";
+import { Suspense } from "react";
+import { SimulatorFromUrl } from "../../components/simulator/SimulatorLoader";
+import { BootScreen } from "../../components/simulator/BootScreen";
 import { getRouteSummary } from "../../lib/getRouteSummary";
 
 export const metadata: Metadata = {
@@ -7,12 +9,14 @@ export const metadata: Metadata = {
   description: "Ride Chennai Metro Line 4 in real-time 3D: cinematic, driver, passenger, map and free cameras.",
 };
 
-export default async function SimulatorPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const sp = await searchParams;
+export default function SimulatorPage() {
   const summary = getRouteSummary();
   const first = summary.stopIds[0];
   const last = summary.stopIds[summary.stopIds.length - 1];
-  const from = typeof sp.from === "string" ? sp.from : first;
-  const to = typeof sp.to === "string" ? sp.to : from === last ? first : last;
-  return <SimulatorLoader from={from} to={to} />;
+  // ?from=…&to=… is read in the browser, so the page also works as a static file.
+  return (
+    <Suspense fallback={<BootScreen />}>
+      <SimulatorFromUrl first={first} last={last} />
+    </Suspense>
+  );
 }

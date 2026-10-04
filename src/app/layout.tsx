@@ -20,7 +20,6 @@ export const metadata: Metadata = {
   description:
     "Ride Chennai Metro Line 4 from Poonamallee Bypass to Vadapalani in an interactive real-time 3D simulation. Built on open data, no paid APIs.",
   applicationName: "Chennai Metro 3D",
-  icons: { icon: "/icon.svg" },
 };
 
 export const viewport: Viewport = {

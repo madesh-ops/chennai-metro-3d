@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import type { ComponentType } from "react";
 import { BootScreen, LoadFailure } from "./BootScreen";
 
@@ -24,4 +25,12 @@ const SimulatorApp = dynamic<AppProps>(
 
 export function SimulatorLoader({ from, to }: AppProps) {
   return <SimulatorApp key={`${from}__${to}`} from={from} to={to} />;
+}
+
+/** Journey from ?from=…&to=… (defaults: the whole line, first to last served station). */
+export function SimulatorFromUrl({ first, last }: { first: string; last: string }) {
+  const params = useSearchParams();
+  const from = params.get("from") ?? first;
+  const to = params.get("to") ?? (from === last ? first : last);
+  return <SimulatorLoader from={from} to={to} />;
 }

@@ -6,10 +6,12 @@ import { trainSoundLayers, type ClipLengths, type TrainClip } from "../simulatio
 import { useViewStore } from "../simulation/store";
 import { duckLevel } from "../utils/audio";
 
+// Under GitHub Pages the site lives below a base path (e.g. /chennai-metro-3d).
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const SOURCES: Record<TrainClip, string> = {
-  start: "/audio/train-start.mp3",
-  run: "/audio/train-running.mp3",
-  stop: "/audio/train-stop.mp3",
+  start: `${BASE}/audio/train-start.mp3`,
+  run: `${BASE}/audio/train-running.mp3`,
+  stop: `${BASE}/audio/train-stop.mp3`,
 };
 /** Elements per clip: the loop needs two for its overlapping repeats. */
 const POOL: Record<TrainClip, number> = { start: 1, run: 2, stop: 1 };

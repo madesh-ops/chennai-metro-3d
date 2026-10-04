@@ -21,7 +21,18 @@ const extraDevOrigins = (process.env.ALLOWED_DEV_ORIGINS ?? "")
   .map((s) => s.trim())
   .filter(Boolean);
 
+/**
+ * Static export for GitHub Pages: `STATIC_EXPORT=1 PAGES_BASE_PATH=/repo-name next build`
+ * writes plain files to out/, served from https://<user>.github.io/<repo-name>/.
+ * Without these variables nothing changes: dev and normal builds run at the root.
+ */
+const staticExport = process.env.STATIC_EXPORT === "1";
+const basePath = staticExport ? (process.env.PAGES_BASE_PATH ?? "") : "";
+
 const nextConfig: NextConfig = {
+  ...(staticExport ? { output: "export" as const, trailingSlash: true, basePath, images: { unoptimized: true } } : {}),
+  // Client code that builds URLs by hand (audio files) needs the base path too.
+  env: { NEXT_PUBLIC_BASE_PATH: basePath },
   reactStrictMode: true,
   poweredByHeader: false,
   // three.js ships modern ESM; transpiling keeps older Safari builds happy.
