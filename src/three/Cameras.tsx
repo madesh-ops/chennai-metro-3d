@@ -8,8 +8,12 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useScene } from "./SceneContext.tsx";
 import { DRIVER_EYE } from "./trainModel.ts";
 import { TRAIN } from "./layout.ts";
+
+/** Tunnel chase: distance from the train's centre to the camera (half the 3-car train plus ~14 m). */
+const TUNNEL_CHASE = (TRAIN.pitch * 2 + TRAIN.carLength) / 2 + 14;
 import { clamp, easeInOutCubic } from "../utils/interpolation.ts";
 import { freeCameraInput } from "./freeCamera.ts";
+import { roofHeightNear } from "./world/heightField.ts";
 import { dragLook, passengerLook, settleLook, zoomLook, type PassengerSpot } from "./passengerLook.ts";
 import { useViewStore, type CameraMode } from "../simulation/store.ts";
 import type { ArrivalPhase } from "../simulation/types.ts";
@@ -100,6 +104,8 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
     lastCenter: new Vector3(),
     time: 0,
     orbitBase: 0,
+    /** Height added to keep a cinematic camera above nearby roofs. */
+    lift: 0,
     passengerSpot: passengerLook.spot,
   });
   const tmp = useMemo(
@@ -410,12 +416,23 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
       // Underground the outside shots would be inside the earth: ride in the tunnel instead,
       // between the tracks behind the train, under the roof.
       if (!hero && rail < -4 && s.shot !== "platform") {
-        route.alignment.offsetPoint(pose.centerDistance - pose.direction * 30, -pose.lateral * 0.4, tmp.pt);
-        tmp.pos.set(tmp.pt.x, railAt(pose.centerDistance - pose.direction * 30) + 3.4, tmp.pt.z);
+        // Clear of the last car (the train is ~68 m long; 30 m behind its centre is inside it).
+        const back = pose.centerDistance - pose.direction * TUNNEL_CHASE;
+        route.alignment.offsetPoint(back, -pose.lateral * 0.4, tmp.pt);
+        tmp.pos.set(tmp.pt.x, railAt(back) + 3.4, tmp.pt.z);
         route.alignment.offsetPoint(pose.centerDistance + pose.direction * 20, pose.lateral, tmp.pt);
         tmp.look.set(tmp.pt.x, railAt(pose.centerDistance + pose.direction * 20) + 1.6, tmp.pt.z);
         desiredFov = 54;
       }
+      // Real buildings line the track now: lift the camera over any roof it would sit in
+      // (eased, so a shot glides over a building rather than jumping).
+      // Only above ground: an underground platform shot sits beneath the buildings on purpose.
+      if (tmp.pos.y > 0) {
+        const roof = roofHeightNear(tmp.pos.x, tmp.pos.z, 3);
+        const need = roof > 0 ? Math.max(0, roof + 3 - tmp.pos.y) : 0;
+        s.lift += (need - s.lift) * Math.min(1, dt * (need > s.lift ? 6 : 1.5));
+        tmp.pos.y += s.lift;
+      } else s.lift = 0;
       lookFrom(tmp.pos, tmp.look);
     } else if (mode === "driver") {
       const car = pose.cars[0];

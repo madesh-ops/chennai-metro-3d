@@ -164,7 +164,7 @@ export default function SimulatorScene({ engine, onProgress, onContextLost }: Si
 
   return (
     <Canvas
-      shadows={shadows ? "soft" : false}
+      shadows={shadows ? "percentage" : false}
       dpr={[lo, Math.max(lo, hi * dprCap)]}
       gl={{ antialias: settings.quality !== "low", powerPreference: "high-performance", stencil: false }}
       camera={{ fov: 42, near: 0.5, far: 9000, position: [0, 40, 80] }}

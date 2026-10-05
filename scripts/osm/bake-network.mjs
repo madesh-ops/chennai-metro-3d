@@ -163,6 +163,11 @@ export const LINE_SPECS = [
  * projected onto the track, the rest spaced evenly between positioned
  * neighbours. Mutates `stations` (sorted by d).
  */
+/** Half a station (platform plus margin), the closest two stations get, and how far one may move to find straight track. */
+const STATION_HALF = 80;
+const MIN_SPACING = 500;
+const SHIFT = 400;
+
 function addSupplement(spec, stations, samples) {
   if (!spec.supplement) return;
   const at = (d) => {
@@ -196,6 +201,35 @@ function addSupplement(spec, stations, samples) {
       pos[k].quality = "interpolated";
       k = b - 1;
     }
+    // Stations stand on straight track: move each a little (in order, clear of its
+    // neighbours) to the straightest stretch nearby if it landed on a curve.
+    const heading = (d) => {
+      const a = at(Math.max(0, d - 5));
+      const b = at(Math.min(end, d + 5));
+      return Math.atan2(b.z - a.z, b.x - a.x);
+    };
+    const turn = (d) => {
+      let t = Math.abs(heading(d + STATION_HALF) - heading(d - STATION_HALF));
+      if (t > Math.PI) t = 2 * Math.PI - t;
+      return t;
+    };
+    for (let k = 1; k < pos.length - 1; k++) {
+      const e = pos[k];
+      if (turn(e.d) < 0.04) continue;
+      const lo = pos[k - 1].d + MIN_SPACING;
+      const hi = pos[k + 1].d - MIN_SPACING;
+      let best = e.d;
+      let cost = turn(e.d);
+      for (let c = Math.max(lo, e.d - SHIFT); c <= Math.min(hi, e.d + SHIFT); c += 10) {
+        const v = turn(c) + Math.abs(c - e.d) / 3000;
+        if (v < cost) {
+          cost = v;
+          best = c;
+        }
+      }
+      e.shiftM = Math.round(best - e.d);
+      e.d = best;
+    }
     for (let k = 1; k < pos.length - 1; k++) {
       const e = pos[k];
       const s = at(e.d);
@@ -215,6 +249,7 @@ function addSupplement(spec, stations, samples) {
         entrances: [],
         quality: e.quality ?? "interpolated",
         source: spec.supplement.source,
+        ...(e.shiftM ? { shiftedM: e.shiftM } : {}),
       });
     }
     for (let k = 2; k < pos.length - 1; k++) if (pos[k].d <= pos[k - 1].d) throw new Error(`${spec.id}: supplement ${pos[k].name} out of order`);
@@ -668,7 +703,7 @@ async function main() {
         offsetM: Math.round(s.off),
         underConstruction: s.construction,
         entrances: s.entrances,
-        ...(s.quality ? { quality: s.quality, source: s.source } : {}),
+        ...(s.quality ? { quality: s.quality, source: s.source, ...(s.shiftedM ? { shiftedM: s.shiftedM } : {}) } : {}),
       })),
     });
     console.log(

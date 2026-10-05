@@ -23,7 +23,8 @@ import { ORDER } from "../Ground.tsx";
 import { ensureFontsLoaded, makeSignAtlasTexture } from "../textures.ts";
 import { SIGN_CELLS, signAtlasNames } from "../shopNames.ts";
 import { decodeTile, TILE_M, type TileData } from "./tileFormat.ts";
-import { buildTileGeometry, type InstanceList, type KeepOut } from "./worldGeometry.ts";
+import { blocked, buildTileGeometry, type InstanceList, type KeepOut } from "./worldGeometry.ts";
+import { addTileHeights, removeTileHeights } from "./heightField.ts";
 import { routeKeepOut } from "./keepOut.ts";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -229,6 +230,7 @@ export function WorldTiles({ shadows }: { shadows: boolean }) {
           root.remove(t.group);
           disposeGroup(t.group, shared);
         }
+        removeTileHeights(t.key);
       }
       s.live.clear();
       s.initial = null;
@@ -319,6 +321,7 @@ export function WorldTiles({ shadows }: { shadows: boolean }) {
           root.remove(t.group);
           disposeGroup(t.group, shared);
         }
+        removeTileHeights(t.key);
         s.live.delete(t.key);
       }
     }
@@ -328,6 +331,7 @@ export function WorldTiles({ shadows }: { shadows: boolean }) {
     for (const t of s.live.values()) {
       if (t.state !== "ready" || !t.data) continue;
       t.group = buildGroup(t.data, shared, s.palette, keep, quality, shadows);
+      addTileHeights(t.key, t.data.buildings.filter((b) => !blocked(b, keep)));
       t.group.updateMatrixWorld(true);
       root.add(t.group);
       t.state = "built";

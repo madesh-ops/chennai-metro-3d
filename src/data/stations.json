@@ -842,7 +842,7 @@
     {
       "id": "thirumayilai",
       "name": "Thirumayilai",
-      "nameTa": "திருமயிலை மெட்ரோ",
+      "nameTa": "திருமயிலை",
       "nameTaVerified": false,
       "altNames": [],
       "type": "underground",
@@ -1002,7 +1002,7 @@
     {
       "id": "koyambedu-market",
       "name": "Koyambedu Market",
-      "nameTa": "கோயம்பேடு சந்தை மெட்ரோ",
+      "nameTa": "கோயம்பேடு சந்தை",
       "nameTaVerified": false,
       "altNames": [],
       "type": "elevated",
@@ -1013,7 +1013,7 @@
     {
       "id": "natesan-nagar",
       "name": "Natesan Nagar",
-      "nameTa": "நடேசன் நகர் மெட்ரோ",
+      "nameTa": "நடேசன் நகர்",
       "nameTaVerified": false,
       "altNames": [],
       "type": "elevated",
@@ -1024,7 +1024,7 @@
     {
       "id": "virugambakkam-north",
       "name": "Virugambakkam North",
-      "nameTa": "விருகம்பாக்கம் வடக்கு மெட்ரோ",
+      "nameTa": "விருகம்பாக்கம் வடக்கு",
       "nameTaVerified": false,
       "altNames": [],
       "type": "elevated",

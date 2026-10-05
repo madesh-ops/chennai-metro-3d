@@ -113,7 +113,7 @@ async function main() {
       const entry = {
         id,
         name,
-        nameTa: n.nameTa ?? null,
+        nameTa: n.nameTa ? n.nameTa.replace(/\s*மெட்ரோ\s*$/, "") : null,
         nameTaVerified: false,
         altNames: [],
         type: kind === "underground" ? "underground" : kind === "at-grade" ? "at-grade" : "elevated",

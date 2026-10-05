@@ -111,7 +111,7 @@ export default async function StationPage({ params }: { params: Promise<{ id: st
                   </span>
                 ))}
               </Fact>
-              <Fact label="Status">{st.service === "pass" ? "Built, not yet open" : s.preview ? `${s.statusLabel} (preview ride)` : s.statusLabel}</Fact>
+              <Fact label="Status">{st.service === "pass" ? "Built, not yet open" : s.statusLabel}</Fact>
               {st.altNames.length > 0 && <Fact label="Also known as">{st.altNames.join(", ")}</Fact>}
               <Fact label="Previous / next served">
                 {prevServed ? prevServed.name : "—"} · {nextServed ? nextServed.name : "—"}
