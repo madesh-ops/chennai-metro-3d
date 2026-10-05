@@ -4,6 +4,7 @@ import { PerformanceMonitor } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ACESFilmicToneMapping, SRGBColorSpace } from "three";
+import { RenderGate } from "./RenderGate.tsx";
 import { SceneContext, createTrafficState, createTrainPose, type SceneContextValue } from "./SceneContext.tsx";
 import { createSceneEnv } from "./env.ts";
 import { CabinDisplays } from "./CabinDisplays.tsx";
@@ -51,15 +52,31 @@ function DevProbe() {
   return null;
 }
 
-/** Compiles shaders once everything is mounted, then reports the first frame. */
-function ReadyGate({ armed, onReady }: { armed: boolean; onReady: () => void }) {
+/**
+ * Compiles shaders once everything is mounted, then reports the first frame.
+ * compileAsync uses the driver's parallel compile, so the page keeps
+ * responding while dozens of programs build (the synchronous compile froze
+ * it for over a second).
+ */
+function ReadyGate({ armed, onReady, open }: { armed: boolean; onReady: () => void; open: { current: boolean } }) {
   const { gl, scene, camera } = useThree();
   const stage = useRef(0);
   useFrame(() => {
-    if (!armed || stage.current > 2) return;
-    if (stage.current === 0) gl.compile(scene, camera);
-    stage.current++;
-    if (stage.current === 3) onReady();
+    if (!armed) return;
+    if (stage.current === 0) {
+      stage.current = 1;
+      gl.compileAsync(scene, camera)
+        .catch(() => undefined)
+        .then(() => {
+          stage.current = 2;
+          open.current = true;
+        });
+      return;
+    }
+    if (stage.current >= 2 && stage.current < 4) {
+      stage.current++;
+      if (stage.current === 4) onReady();
+    }
   });
   return null;
 }
@@ -106,6 +123,7 @@ export default function SimulatorScene({ engine, onProgress, onContextLost }: Si
   // The real street grid comes from the world tiles; no invented cross streets.
   const crossStreets = useMemo<number[]>(() => [], []);
   const signal = useMemo<StationSignalState>(() => ({ holdAt: null }), []);
+  const renderOpen = useRef(false);
 
   // The environment is the street furniture (City) plus the first world tiles round the train.
   const envParts = useRef({ environment: 0, world: 0 });
@@ -215,7 +233,8 @@ export default function SimulatorScene({ engine, onProgress, onContextLost }: Si
         <MapOverlay highlightIds={[engine.journey.from.id, engine.journey.to.id]} />
         <CameraRig reducedMotion={settings.reducedMotion} cameraShake={settings.cameraShake} getArrival={getArrival} />
         <DevProbe />
-        <ReadyGate armed={envDone && trainDone} onReady={() => onProgress("render", 1)} />
+        <RenderGate open={renderOpen} />
+        <ReadyGate armed={envDone && trainDone} onReady={() => onProgress("render", 1)} open={renderOpen} />
       </SceneContext.Provider>
     </Canvas>
   );

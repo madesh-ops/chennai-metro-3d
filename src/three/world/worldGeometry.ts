@@ -1,6 +1,6 @@
 import { BufferAttribute, BufferGeometry, Color, Matrix4, Quaternion, ShapeUtils, Vector2, Vector3 } from "three";
 import { mulberry32, type Rng } from "../../utils/random.ts";
-import type { TileArea, TileBuilding, TileData, TileRoad, TileTree } from "./tileFormat.ts";
+import { TILE_M, type TileArea, type TileBuilding, type TileData, type TileRoad, type TileTree } from "./tileFormat.ts";
 
 /**
  * Geometry for one world tile: extruded building footprints (one merged
@@ -15,7 +15,8 @@ const WALL_FOOT = -0.6;
 const FLAT_Y = 0.02;
 
 export interface TileGeometry {
-  buildings: BufferGeometry | null;
+  /** Buildings in quadrants of the tile (centre of each), so far ones can skip the shadow pass and be culled. */
+  buildings: { cx: number; cz: number; geometry: BufferGeometry }[];
   flat: BufferGeometry | null;
   /** Instance matrices (16 floats each) and colours (3 each). */
   trunks: InstanceList;
@@ -25,7 +26,7 @@ export interface TileGeometry {
   /** Sign boards; `cells` holds each board's atlas cell. */
   signs: InstanceList & { cells: number[] };
   /** Buildings kept (after the keep-out test). */
-  kept: number;
+  kept: TileBuilding[];
 }
 
 export interface InstanceList {
@@ -402,15 +403,37 @@ export function buildTileGeometry(tile: TileData, opts: BuildOptions): TileGeome
   const seed = (tile.tx * 7349 + tile.tz * 9157) >>> 0;
   const r = mulberry32(seed);
   const kept = tile.buildings.filter((b) => !blocked(b, opts.keep));
+  // Quadrants by footprint centre.
+  const half = TILE_M / 2;
+  const x0 = tile.tx * TILE_M;
+  const z0 = tile.tz * TILE_M;
+  const quads: TileBuilding[][] = [[], [], [], []];
+  for (const b of kept) {
+    const r0 = b.ring;
+    let cx = 0;
+    let cz = 0;
+    for (let i = 0; i < r0.length; i += 2) {
+      cx += r0[i];
+      cz += r0[i + 1];
+    }
+    cx /= r0.length / 2;
+    cz /= r0.length / 2;
+    quads[(cx - x0 >= half ? 1 : 0) + (cz - z0 >= half ? 2 : 0)].push(b);
+  }
+  const buildings: TileGeometry["buildings"] = [];
+  quads.forEach((list, q) => {
+    const geometry = buildBuildings(list, opts.palette, seed + q);
+    if (geometry) buildings.push({ cx: x0 + (q & 1 ? 1.5 : 0.5) * half, cz: z0 + (q & 2 ? 1.5 : 0.5) * half, geometry });
+  });
   const out: TileGeometry = {
-    buildings: buildBuildings(kept, opts.palette, seed),
+    buildings,
     flat: buildFlat(tile.roads, tile.areas),
     trunks: { matrices: [], colors: [] },
     crowns: { matrices: [], colors: [] },
     palms: { matrices: [], colors: [] },
     tanks: { matrices: [], colors: [] },
     signs: { matrices: [], colors: [], cells: [] },
-    kept: kept.length,
+    kept,
   };
   for (const b of kept) {
     if (b.flags & 2) {
@@ -425,4 +448,85 @@ export function buildTileGeometry(tile: TileData, opts: BuildOptions): TileGeome
     addTree(t, r, out);
   }
   return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* Packed form: plain typed arrays, built in a worker and transferred   */
+/* ------------------------------------------------------------------ */
+
+export interface PackedGeometry {
+  attrs: { name: string; array: Float32Array; size: number }[];
+}
+
+export interface PackedInstances {
+  matrices: Float32Array;
+  colors: Float32Array;
+}
+
+export interface PackedTile {
+  key: string;
+  flat: PackedGeometry | null;
+  buildings: { cx: number; cz: number; geometry: PackedGeometry }[];
+  trunks: PackedInstances;
+  crowns: PackedInstances;
+  palms: PackedInstances;
+  tanks: PackedInstances;
+  signs: PackedInstances & { cells: Float32Array };
+  /** Kept footprints for the camera roof lookup: rings concatenated, ring i spans offsets[i]..offsets[i+1]. */
+  heights: { rings: Float32Array; offsets: Uint32Array; h: Float32Array };
+}
+
+function packGeometry(g: BufferGeometry): PackedGeometry {
+  return {
+    attrs: Object.entries(g.attributes).map(([name, a]) => ({ name, array: a.array as Float32Array, size: a.itemSize })),
+  };
+}
+
+const packInstances = (l: InstanceList): PackedInstances => ({ matrices: new Float32Array(l.matrices), colors: new Float32Array(l.colors) });
+
+export function packTile(key: string, tile: TileData, opts: BuildOptions): PackedTile {
+  const g = buildTileGeometry(tile, opts);
+  let total = 0;
+  for (const b of g.kept) total += b.ring.length;
+  const rings = new Float32Array(total);
+  const offsets = new Uint32Array(g.kept.length + 1);
+  const h = new Float32Array(g.kept.length);
+  let o = 0;
+  g.kept.forEach((b, i) => {
+    rings.set(b.ring, o);
+    offsets[i] = o;
+    o += b.ring.length;
+    h[i] = b.height;
+  });
+  offsets[g.kept.length] = o;
+  return {
+    key,
+    flat: g.flat ? packGeometry(g.flat) : null,
+    buildings: g.buildings.map((b) => ({ cx: b.cx, cz: b.cz, geometry: packGeometry(b.geometry) })),
+    trunks: packInstances(g.trunks),
+    crowns: packInstances(g.crowns),
+    palms: packInstances(g.palms),
+    tanks: packInstances(g.tanks),
+    signs: { ...packInstances(g.signs), cells: new Float32Array(g.signs.cells) },
+    heights: { rings, offsets, h },
+  };
+}
+
+/** Every buffer in a packed tile, for postMessage's transfer list. */
+export function packedBuffers(p: PackedTile): ArrayBuffer[] {
+  const out: ArrayBuffer[] = [];
+  const geo = (g: PackedGeometry | null) => g?.attrs.forEach((a) => out.push(a.array.buffer as ArrayBuffer));
+  geo(p.flat);
+  p.buildings.forEach((b) => geo(b.geometry));
+  for (const l of [p.trunks, p.crowns, p.palms, p.tanks, p.signs]) out.push(l.matrices.buffer as ArrayBuffer, l.colors.buffer as ArrayBuffer);
+  out.push(p.signs.cells.buffer as ArrayBuffer, p.heights.rings.buffer as ArrayBuffer, p.heights.offsets.buffer as ArrayBuffer, p.heights.h.buffer as ArrayBuffer);
+  return [...new Set(out)];
+}
+
+/** Rebuild a BufferGeometry from its packed arrays (main thread). */
+export function unpackGeometry(p: PackedGeometry): BufferGeometry {
+  const g = new BufferGeometry();
+  for (const a of p.attrs) g.setAttribute(a.name, new BufferAttribute(a.array, a.size));
+  g.computeBoundingSphere();
+  return g;
 }

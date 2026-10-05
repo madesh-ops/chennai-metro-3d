@@ -1,4 +1,4 @@
-import { TILE_M, type TileBuilding } from "./tileFormat.ts";
+import { TILE_M } from "./tileFormat.ts";
 
 /**
  * Roof heights of the buildings currently streamed in, so cameras can keep
@@ -19,7 +19,7 @@ interface Entry {
 const tiles = new Map<string, Map<number, Entry[]>>();
 const cellKey = (i: number, j: number) => i * 100003 + j;
 
-export function addTileHeights(key: string, buildings: TileBuilding[]): void {
+export function addTileHeights(key: string, buildings: { ring: Float32Array; height: number }[]): void {
   const cells = new Map<number, Entry[]>();
   for (const b of buildings) {
     const r = b.ring;

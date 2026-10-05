@@ -5,6 +5,9 @@ import { copyFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const base = process.argv[2] ?? "/chennai-metro-3d";
+// The world-tile worker is bundled separately (see scripts/build-worker.mjs).
+const worker = spawnSync("node", ["scripts/build-worker.mjs"], { stdio: "inherit", shell: true });
+if (worker.status !== 0) process.exit(worker.status ?? 1);
 const result = spawnSync("npx", ["next", "build"], {
   stdio: "inherit",
   shell: true,

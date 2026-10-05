@@ -254,9 +254,14 @@ export function makeDestinationTexture(text: string): Texture {
 
 /** Shrink a font until the text fits the width. */
 function fitFont(ctx: CanvasRenderingContext2D, text: string, weight: number, family: string, size: number, min: number, width: number) {
-  let px = size;
+  // Text width scales with font size: one measurement gives the size, a check or two
+  // covers rounding (setting ctx.font is slow, so no 1 px search).
+  ctx.font = `${weight} ${size}px ${family}`;
+  const w = ctx.measureText(text).width;
+  if (w <= width) return size;
+  let px = Math.max(min, Math.floor((size * width) / w));
   ctx.font = `${weight} ${px}px ${family}`;
-  while (ctx.measureText(text).width > width && px > min) {
+  while (px > min && ctx.measureText(text).width > width) {
     px -= 1;
     ctx.font = `${weight} ${px}px ${family}`;
   }

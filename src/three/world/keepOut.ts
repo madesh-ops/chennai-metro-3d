@@ -1,28 +1,13 @@
 import type { RouteModel } from "../../simulation/RouteController.ts";
 import { ROAD } from "../layout.ts";
 import { landmarkFootprints } from "../landmarkLayout.ts";
-import { branchLayout, inBranchCorridor } from "../line5Layout.ts";
+import { branchLayout } from "../line5Layout.ts";
+import { makeKeepOut, type KeepOutData } from "./keepOutCore.ts";
 import type { KeepOut } from "./worldGeometry.ts";
 
-const CELL = 50;
 /** Rail heights: viaduct over a road, open trough / at grade, tunnel (as Track.tsx). */
 const VIADUCT_MIN = 4;
 const TUNNEL_MAX = -7;
-
-interface Circle {
-  x: number;
-  z: number;
-  r: number;
-}
-
-interface Rect {
-  cx: number;
-  cz: number;
-  ux: number;
-  uz: number;
-  ha: number;
-  hd: number;
-}
 
 /**
  * Ground the real city must leave clear for what this route draws itself:
@@ -30,19 +15,9 @@ interface Rect {
  * underground station entrances, curated landmarks and the Line 5 branch
  * corridors. Tunnels need nothing: the city stands over them.
  */
-export function routeKeepOut(route: RouteModel, range: [number, number]): KeepOut {
-  const grid = new Map<string, Circle[]>();
-  const add = (x: number, z: number, r: number) => {
-    const c = { x, z, r };
-    for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) {
-      for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) {
-        const k = `${i},${j}`;
-        let l = grid.get(k);
-        if (!l) grid.set(k, (l = []));
-        l.push(c);
-      }
-    }
-  };
+export function routeKeepOutData(route: RouteModel, range: [number, number]): KeepOutData {
+  const circles: number[] = [];
+  const add = (x: number, z: number, r: number) => circles.push(x, z, r);
   const { alignment, profile } = route;
   const p = { x: 0, z: 0 };
   const corridor = ROAD.halfWidth + ROAD.sidewalk + 0.8;
@@ -65,32 +40,20 @@ export function routeKeepOut(route: RouteModel, range: [number, number]): KeepOu
     }
   }
   // Landmarks: oriented rectangles with a margin.
-  const rects: Rect[] = [];
+  const rects: number[] = [];
   for (const f of landmarkFootprints(route)) {
     if (f.placement.type === "lake") continue; // the real lake outline comes from OSM
     const c = alignment.offsetPoint(f.distance, f.lateral);
     const a = alignment.point(f.distance - 1);
     const b = alignment.point(f.distance + 1);
     const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-    rects.push({ cx: c.x, cz: c.z, ux: (b.x - a.x) / l, uz: (b.z - a.z) / l, ha: f.along / 2 + 8, hd: f.depth / 2 + 8 });
+    rects.push(c.x, c.z, (b.x - a.x) / l, (b.z - a.z) / l, f.along / 2 + 8, f.depth / 2 + 8);
   }
-  const branch = branchLayout(route);
+  // Line 5 branch viaducts and the roads under them.
+  for (const s of branchLayout(route)?.samples ?? []) add(s.x, s.z, s.half);
+  return { circles, rects };
+}
 
-  return (x, z, r) => {
-    const l = grid.get(`${Math.floor(x / CELL)},${Math.floor(z / CELL)}`);
-    if (l) {
-      for (const c of l) {
-        const rr = c.r + r;
-        if ((x - c.x) * (x - c.x) + (z - c.z) * (z - c.z) < rr * rr) return true;
-      }
-    }
-    for (const q of rects) {
-      const dx = x - q.cx;
-      const dz = z - q.cz;
-      const a = dx * q.ux + dz * q.uz;
-      const d = -dx * q.uz + dz * q.ux;
-      if (Math.abs(a) < q.ha + r && Math.abs(d) < q.hd + r) return true;
-    }
-    return inBranchCorridor(branch, x, z, r);
-  };
+export function routeKeepOut(route: RouteModel, range: [number, number]): KeepOut {
+  return makeKeepOut(routeKeepOutData(route, range));
 }

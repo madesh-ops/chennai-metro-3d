@@ -120,6 +120,6 @@ test("keep-out zones remove buildings and trees", () => {
   assert.equal(blocked(data.buildings[0], keep), true);
   assert.equal(blocked(data.buildings[1], keep), false);
   const g = buildTileGeometry(data, { palette: [new Color("#fff")], keep, signCells: 0, treeDensity: 1 });
-  assert.equal(g.kept, 1);
+  assert.equal(g.kept.length, 1);
   assert.equal(g.trunks.matrices.length / 16, 1);
 });

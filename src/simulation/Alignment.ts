@@ -35,6 +35,9 @@ export class Alignment {
     const tTable: number[] = [0];
     const sTable: number[] = [0];
     const prev = curve.getPoint(0);
+    // Positions of the arc samples, reused for the 1 m table below (no second pass over the curve).
+    const xs: number[] = [prev.x];
+    const zs: number[] = [prev.z];
     const cur = new Vector3();
     let s = 0;
     for (let seg = 0; seg < segments; seg++) {
@@ -47,6 +50,8 @@ export class Alignment {
         prev.copy(cur);
         tTable.push(t);
         sTable.push(s);
+        xs.push(cur.x);
+        zs.push(cur.z);
       }
     }
     this.length = s;
@@ -61,18 +66,26 @@ export class Alignment {
     this.pz = new Float64Array(this.count);
     this.tx = new Float64Array(this.count);
     this.tz = new Float64Array(this.count);
-    const tan = new Vector3();
+    // Positions every metre, interpolated between the ~0.5 m arc samples (walking forward).
+    let j = 0;
     for (let i = 0; i < this.count; i++) {
       const d = Math.min(i * this.step, this.length);
-      const t = interpolateTable(sTable, tTable, d);
-      curve.getPoint(t, cur);
-      curve.getTangent(t, tan);
-      tan.y = 0;
-      tan.normalize();
-      this.px[i] = cur.x;
-      this.pz[i] = cur.z;
-      this.tx[i] = tan.x;
-      this.tz[i] = tan.z;
+      while (j < sTable.length - 2 && sTable[j + 1] < d) j++;
+      const span = sTable[j + 1] - sTable[j] || 1;
+      const u = clamp((d - sTable[j]) / span, 0, 1);
+      this.px[i] = xs[j] + (xs[j + 1] - xs[j]) * u;
+      this.pz[i] = zs[j] + (zs[j + 1] - zs[j]) * u;
+    }
+    // Tangents by central differences (one-sided at the ends).
+    for (let i = 0; i < this.count; i++) {
+      const a = Math.max(0, i - 1);
+      const b = Math.min(this.count - 1, i + 1);
+      const dx = this.px[b] - this.px[a];
+      const dz = this.pz[b] - this.pz[a];
+      const l = Math.hypot(dx, dz);
+      // Coincident samples (the last two can share the end point): keep the previous direction.
+      this.tx[i] = l > 1e-9 ? dx / l : i > 0 ? this.tx[i - 1] : 1;
+      this.tz[i] = l > 1e-9 ? dz / l : i > 0 ? this.tz[i - 1] : 0;
     }
   }
 
@@ -138,24 +151,51 @@ export class Alignment {
    * `span` metres either side of `guess`: a coarse pass, then a fine one.
    */
   project(x: number, z: number, guess: number, span: number): number {
-    const p = { x: 0, z: 0 };
-    const dist2 = (d: number) => {
-      this.point(d, p);
-      return (p.x - x) ** 2 + (p.z - z) ** 2;
-    };
+    // Straight on the 1 m sample table (no per-step interpolation): a 3 m coarse
+    // pass, a 1 m pass round the best, then an exact projection onto its segments.
     const lo = clamp(guess - span, 0, this.length);
     const hi = clamp(guess + span, 0, this.length);
-    let best = lo;
-    let bestD = Infinity;
-    for (let d = lo; d <= hi; d += 10) {
-      const e = dist2(d);
-      if (e < bestD) [best, bestD] = [d, e];
+    const i0 = Math.floor(lo / this.step);
+    const i1 = Math.min(this.count - 1, Math.ceil(hi / this.step));
+    const px = this.px;
+    const pz = this.pz;
+    let bi = i0;
+    let bd = Infinity;
+    for (let i = i0; i <= i1; i += 3) {
+      const dx = px[i] - x;
+      const dz = pz[i] - z;
+      const e = dx * dx + dz * dz;
+      if (e < bd) {
+        bd = e;
+        bi = i;
+      }
     }
-    for (let d = Math.max(lo, best - 10); d <= Math.min(hi, best + 10); d += 0.5) {
-      const e = dist2(d);
-      if (e < bestD) [best, bestD] = [d, e];
+    for (let i = Math.max(i0, bi - 3); i <= Math.min(i1, bi + 3); i++) {
+      const dx = px[i] - x;
+      const dz = pz[i] - z;
+      const e = dx * dx + dz * dz;
+      if (e < bd) {
+        bd = e;
+        bi = i;
+      }
     }
-    return best;
+    let best = bi * this.step;
+    for (const a of [bi - 1, bi]) {
+      const b = a + 1;
+      if (a < i0 || b > i1) continue;
+      const sx = px[b] - px[a];
+      const sz = pz[b] - pz[a];
+      const l2 = sx * sx + sz * sz || 1;
+      const t = clamp(((x - px[a]) * sx + (z - pz[a]) * sz) / l2, 0, 1);
+      const dx = px[a] + sx * t - x;
+      const dz = pz[a] + sz * t - z;
+      const e = dx * dx + dz * dz;
+      if (e < bd) {
+        bd = e;
+        best = (a + t) * this.step;
+      }
+    }
+    return clamp(best, lo, hi);
   }
 
   /** Offset point: centreline + lateral metres to the right. */

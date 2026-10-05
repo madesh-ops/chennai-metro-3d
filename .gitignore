@@ -8,3 +8,6 @@ test-results/
 screenshots/
 .verify/
 data-cache/
+
+# Built by scripts/build-worker.mjs
+public/world/tileWorker.js

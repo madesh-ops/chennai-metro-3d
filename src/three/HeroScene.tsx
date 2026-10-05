@@ -1,7 +1,7 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ACESFilmicToneMapping, SRGBColorSpace } from "three";
 import { SceneContext, createTrafficState, createTrainPose, type SceneContextValue } from "./SceneContext.tsx";
 import { createSceneEnv } from "./env.ts";
@@ -14,6 +14,7 @@ import { Flyover } from "./Flyover.tsx";
 import { Stations } from "./Stations.tsx";
 import { City } from "./City.tsx";
 import { WorldTiles } from "./world/WorldTiles.tsx";
+import { RenderGate } from "./RenderGate.tsx";
 import { Landmarks } from "./Landmarks.tsx";
 import { Traffic } from "./Traffic.tsx";
 import { CameraRig } from "./Cameras.tsx";
@@ -33,6 +34,7 @@ export default function HeroScene({ reducedMotion, onReady }: { reducedMotion: b
   const traffic = useMemo(() => createTrafficState(), []);
   const fade = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+  const renderOpen = useRef(false);
 
   // Nearly straight run between Thelliyaragaram and Porur Junction.
   const start = route.stationById.get("thelliyaragaram")!.distance + 70;
@@ -47,11 +49,11 @@ export default function HeroScene({ reducedMotion, onReady }: { reducedMotion: b
       if (key === "train") return;
       parts.current[key] = v;
       if (parts.current.environment >= 1 && parts.current.world >= 1 && !ready) {
+        // Compile shaders (in parallel, off the main thread) before the scene fades in.
         setReady(true);
-        onReady?.();
       }
     },
-    [onReady, ready],
+    [ready],
   );
 
   const ctx = useMemo<SceneContextValue>(
@@ -96,6 +98,8 @@ export default function HeroScene({ reducedMotion, onReady }: { reducedMotion: b
           <Landmarks shadows={false} />
           <Traffic getSimDelta={() => (reducedMotion ? 0 : 1 / 60)} enabled />
           <Train destination="Vadapalani" lineColour={route.line.colour} />
+          <RenderGate open={renderOpen} />
+          <CompileThenShow armed={ready} onShown={onReady} open={renderOpen} />
           <CameraRig hero reducedMotion={reducedMotion} cameraShake={false} getArrival={heroArrival} />
         </SceneContext.Provider>
       </Canvas>
@@ -127,5 +131,22 @@ function Clock({
     const hidden = frames.current < 20 || remaining < CRUISE * 0.9 || along < CRUISE * 0.5;
     if (fade.current) fade.current.style.opacity = hidden ? "1" : "0";
   });
+  return null;
+}
+
+/** Once armed, compile every shader asynchronously, then report (so the fade-in doesn't hitch). */
+function CompileThenShow({ armed, onShown, open }: { armed: boolean; onShown?: () => void; open: { current: boolean } }) {
+  const { gl, scene, camera } = useThree();
+  const started = useRef(false);
+  useEffect(() => {
+    if (!armed || started.current) return;
+    started.current = true;
+    gl.compileAsync(scene, camera)
+      .catch(() => undefined)
+      .then(() => {
+        open.current = true;
+        requestAnimationFrame(() => onShown?.());
+      });
+  }, [armed, gl, scene, camera, onShown, open]);
   return null;
 }
