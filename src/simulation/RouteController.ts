@@ -375,7 +375,7 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
       notes: s.notes ?? "",
       order: i,
       coordinates: coords[i],
-      coordinateQuality: net ? "osm" : (s.coordinates?.quality ?? s.placement?.quality ?? "interpolated"),
+      coordinateQuality: net ? (networkStation(net, s)?.quality ?? "osm") : (s.coordinates?.quality ?? s.placement?.quality ?? "interpolated"),
       coordinateSource: net ? "osm" : (s.coordinates?.source ?? null),
       distance,
       km: ((distance - startDistance) * displayScale) / 1000,

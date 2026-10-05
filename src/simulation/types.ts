@@ -277,7 +277,8 @@ export interface RawLandmarksFile {
 
 /** OpenStreetMap-baked network (src/data/network.json, scripts/osm/bake-network.mjs). */
 export interface RawNetworkStation {
-  osmId: number;
+  /** Null for stations OSM does not map yet (added from `source`). */
+  osmId: number | null;
   name: string;
   nameTa: string | null;
   lat: number;
@@ -287,6 +288,9 @@ export interface RawNetworkStation {
   offsetM: number;
   underConstruction: boolean;
   entrances: [number, number][];
+  /** Present when not from OSM: how the position was estimated. */
+  quality?: "bus-stop" | "locality" | "interpolated";
+  source?: string;
 }
 
 export interface RawNetworkLine {

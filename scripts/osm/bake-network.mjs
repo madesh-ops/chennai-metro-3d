@@ -13,7 +13,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { CACHE_DIR } from "./overpass.mjs";
-import { ORIGIN, toLocal } from "./tiles.mjs";
+import { ORIGIN, toLatLon, toLocal } from "./tiles.mjs";
 
 const load = async (name) => JSON.parse(await readFile(path.join(CACHE_DIR, `${name}.json`), "utf8"));
 
@@ -53,8 +53,102 @@ export const LINE_SPECS = [
     own: /Line 5\b|Red Line/i,
     from: ["Madhavaram Milk Colony", "Assissi Nagar", "Assisi Nagar"],
     to: ["Sholinganallur Metro", "Sholinganallur", "Shozhinganallur"],
+    /**
+     * Stations OSM does not map yet (it has 27 of the 45). Names and order from
+     * Wikipedia (Red Line (Chennai Metro), checked 2026-10-05). Positioned at the
+     * same-name bus stop or locality on the track where OSM has one (`at`),
+     * otherwise spaced evenly between their neighbours.
+     */
+    supplement: {
+      source: "Wikipedia — Red Line (Chennai Metro), station list (2026-10-05)",
+      after: {
+        "Villivakkam Metro": [
+          { name: "Villivakkam Bus Terminus", nameTa: null, at: [13.10546, 80.20793], quality: "bus-stop" },
+          { name: "Villivakkam CTH Road", nameTa: null },
+          { name: "Anna Nagar West", nameTa: "அண்ணா நகர் மேற்கு", at: [13.09375, 80.19849], quality: "bus-stop" },
+          { name: "Thirumangalam", nameTa: "திருமங்கலம்", at: [13.08538, 80.20131], quality: "bus-stop" },
+          { name: "Anna Nagar KV", nameTa: null },
+        ],
+        "St. Thomas Mount Metro": [
+          { name: "Adambakkam", nameTa: "ஆதம்பாக்கம்", at: [12.982381, 80.196888], quality: "locality" },
+          { name: "Vanuvampet", nameTa: null },
+          { name: "Ullagaram", nameTa: "உள்ளகரம்" },
+          { name: "Madipakkam", nameTa: "மடிப்பாக்கம்", at: [12.96846, 80.19002], quality: "locality" },
+          { name: "Kilkattalai", nameTa: "கீழ்க்கட்டளை", at: [12.95595, 80.18683], quality: "bus-stop" },
+          { name: "Echangadu", nameTa: "ஈச்சங்காடு", at: [12.94865, 80.1851], quality: "bus-stop" },
+          { name: "Kovilambakkam", nameTa: "கோவிலம்பாக்கம்", at: [12.93924, 80.18252], quality: "bus-stop" },
+          { name: "Vellakkal", nameTa: "வெள்ளைக்கல்", at: [12.93137, 80.18145], quality: "bus-stop" },
+          { name: "Medavakkam I", nameTa: null, at: [12.92047, 80.18396], quality: "bus-stop" },
+          { name: "Medavakkam II", nameTa: null, at: [12.91732, 80.19368], quality: "bus-stop" },
+          { name: "Perumbakkam", nameTa: "பெரும்பாக்கம்", at: [12.90555, 80.19562], quality: "locality" },
+          { name: "Classical Tamil Institute", nameTa: null },
+          { name: "Elcot", nameTa: null },
+        ],
+      },
+    },
   },
 ];
+
+/**
+ * Insert supplementary stations after their named neighbour: anchored ones
+ * projected onto the track, the rest spaced evenly between positioned
+ * neighbours. Mutates `stations` (sorted by d).
+ */
+function addSupplement(spec, stations, samples) {
+  if (!spec.supplement) return;
+  const at = (d) => {
+    let i = samples.findIndex((s) => s.d >= d);
+    if (i < 0) i = samples.length - 1;
+    return samples[i];
+  };
+  for (const [after, list] of Object.entries(spec.supplement.after)) {
+    const i = stations.findIndex((s) => s.name === after);
+    if (i < 0) throw new Error(`${spec.id}: supplement anchor ${after} not found`);
+    const next = stations[i + 1];
+    const run = list.map((e) => {
+      if (!e.at) return { ...e, d: null };
+      const [x, z] = toLocal(e.at[0], e.at[1]);
+      const p = projectOnto(samples, x, z);
+      return { ...e, d: p.d, off: p.off };
+    });
+    // Evenly between the nearest positioned neighbours.
+    const pos = [{ d: stations[i].d }, ...run, { d: next ? next.d : samples[samples.length - 1].d }];
+    for (let k = 1; k < pos.length - 1; k++) {
+      if (pos[k].d !== null) continue;
+      let a = k - 1;
+      let b = k + 1;
+      while (pos[b].d === null) b++;
+      const d0 = pos[a].d;
+      const d1 = pos[b].d;
+      for (let m = k; m < b; m++) pos[m].d = d0 + ((d1 - d0) * (m - a)) / (b - a);
+      pos[k].quality = "interpolated";
+      k = b - 1;
+    }
+    for (let k = 1; k < pos.length - 1; k++) {
+      const e = pos[k];
+      const s = at(e.d);
+      const ll = toLatLon(s.x, s.z);
+      stations.push({
+        osmId: null,
+        name: e.name,
+        nameTa: e.nameTa,
+        lat: ll.lat,
+        lon: ll.lon,
+        x: s.x,
+        z: s.z,
+        d: e.d,
+        off: 0,
+        station: true,
+        construction: true,
+        entrances: [],
+        quality: e.quality ?? "interpolated",
+        source: spec.supplement.source,
+      });
+    }
+    for (let k = 2; k < pos.length - 1; k++) if (pos[k].d <= pos[k - 1].d) throw new Error(`${spec.id}: supplement ${pos[k].name} out of order`);
+  }
+  stations.sort((a, b) => a.d - b.d);
+}
 
 const key = (lat, lon) => `${lat.toFixed(7)},${lon.toFixed(7)}`;
 
@@ -462,6 +556,7 @@ async function main() {
       byName.set(`${nm}@${Math.round(p.d)}`, entry);
     }
     const stations = [...byName.values()].sort((p, q) => p.d - q.d);
+    addSupplement(spec, stations, samples);
 
     // Entrances near each station.
     for (const s of stations) {
@@ -495,6 +590,7 @@ async function main() {
         offsetM: Math.round(s.off),
         underConstruction: s.construction,
         entrances: s.entrances,
+        ...(s.quality ? { quality: s.quality, source: s.source } : {}),
       })),
     });
     console.log(

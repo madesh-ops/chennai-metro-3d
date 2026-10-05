@@ -99,7 +99,9 @@ async function main() {
         service: "stop",
         coordinates: null,
         ...(name !== n.name ? { osmName: n.name } : {}),
-        notes: `Position and Tamil name from OpenStreetMap (${line.name}).${n.underConstruction ? " Under construction." : ""}`,
+        notes: n.quality
+          ? `Not yet mapped in OpenStreetMap: name and order from ${n.source}; position ${n.quality === "interpolated" ? "spaced evenly between its neighbours on the real track (indicative)" : `at the same-name ${n.quality === "bus-stop" ? "bus stop" : "locality"} on the track (approximate)`}.${n.nameTa ? " Tamil name from OpenStreetMap, not verified." : ""} Under construction.`
+          : `Position and Tamil name from OpenStreetMap (${line.name}).${n.underConstruction ? " Under construction." : ""}`,
       };
       stations.stations.push(entry);
       byNorm.set(norm(n.name), entry);
@@ -110,10 +112,19 @@ async function main() {
   const template = routes.routes[0];
   let addedRoutes = 0;
   for (const spec of ROUTES) {
-    if (routes.routes.some((r) => r.id === spec.id)) continue;
     const line = net.lines.find((l) => l.id === spec.line);
     let ids = line.stations.map((n) => byNorm.get(norm(n.name)).id);
     if (spec.from) ids = ids.slice(ids.indexOf(byNorm.get(norm(spec.from)).id));
+    const existing = routes.routes.find((r) => r.id === spec.id);
+    if (existing) {
+      // Preview routes follow the baked station list (stations get added as they are mapped).
+      if (existing.status === "under-construction" && existing.stationIds.join() !== ids.join()) {
+        existing.stationIds = ids;
+        existing.servedStationCount = ids.length;
+        console.log(`${spec.id}: now ${ids.length} stations`);
+      }
+      continue;
+    }
     // Line 4 runs west → east as baked; its eastern route starts at Vadapalani.
     const lengthKm = spec.lengthKm ?? Number(((line.stations.at(-1).d - line.stations[ids.length === line.stations.length ? 0 : line.stations.length - ids.length].d) / 1000).toFixed(2));
     routes.routes.push({

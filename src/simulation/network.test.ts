@@ -8,7 +8,7 @@ interface NetLine {
   lengthM: number;
   track: [number, number][];
   structure: [number, number, "elevated" | "underground" | "at-grade", number][];
-  stations: { name: string; d: number; offsetM: number }[];
+  stations: { name: string; d: number; offsetM: number; osmId: number | null; quality?: string; source?: string }[];
 }
 const net = JSON.parse(readFileSync(new URL("../data/network.json", import.meta.url), "utf8")) as { meta: { licence: string }; lines: NetLine[] };
 const line = (id: string) => net.lines.find((l) => l.id === id)!;
@@ -65,4 +65,19 @@ test("elevated and underground stretches are where the real lines run", () => {
   const l4 = line("line-4");
   assert.equal(kindAt(l4, station(l4, /Porur Junction/).d), "elevated");
   assert.equal(kindAt(l4, station(l4, /Alwarpet/).d), "underground");
+});
+
+test("Line 5: all 45 stations (Wikipedia), unmapped ones flagged with how they were placed", () => {
+  const l5 = net.lines.find((l) => l.id === "line-5")!;
+  assert.equal(l5.stations.length, 45);
+  for (let i = 1; i < l5.stations.length; i++) {
+    const gap = l5.stations[i].d - l5.stations[i - 1].d;
+    assert.ok(gap > 500 && gap < 1700, `${l5.stations[i - 1].name} → ${l5.stations[i].name}: ${gap} m`);
+  }
+  const added = l5.stations.filter((s) => s.osmId === null);
+  assert.equal(added.length, 18);
+  for (const s of added) assert.ok(s.quality && s.source, s.name);
+  const names = l5.stations.map((s) => s.name);
+  assert.ok(names.indexOf("Thirumangalam") > names.indexOf("Villivakkam Metro"));
+  assert.ok(names.indexOf("Adambakkam") === names.indexOf("St. Thomas Mount Metro") + 1);
 });

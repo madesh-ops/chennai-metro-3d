@@ -1098,6 +1098,193 @@
       "coordinates": null,
       "osmName": "Sholinganallur Metro",
       "notes": "Position and Tamil name from OpenStreetMap (Line 5). Under construction."
+    },
+    {
+      "id": "villivakkam-bus-terminus",
+      "name": "Villivakkam Bus Terminus",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "underground",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name bus stop on the track (approximate). Under construction."
+    },
+    {
+      "id": "villivakkam-cth-road",
+      "name": "Villivakkam CTH Road",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "underground",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position spaced evenly between its neighbours on the real track (indicative). Under construction."
+    },
+    {
+      "id": "anna-nagar-west",
+      "name": "Anna Nagar West",
+      "nameTa": "அண்ணா நகர் மேற்கு",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name bus stop on the track (approximate). Tamil name from OpenStreetMap, not verified. Under construction."
+    },
+    {
+      "id": "anna-nagar-kv",
+      "name": "Anna Nagar KV",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position spaced evenly between its neighbours on the real track (indicative). Under construction."
+    },
+    {
+      "id": "adambakkam",
+      "name": "Adambakkam",
+      "nameTa": "ஆதம்பாக்கம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name locality on the track (approximate). Tamil name from OpenStreetMap, not verified. Under construction."
+    },
+    {
+      "id": "vanuvampet",
+      "name": "Vanuvampet",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position spaced evenly between its neighbours on the real track (indicative). Under construction."
+    },
+    {
+      "id": "ullagaram",
+      "name": "Ullagaram",
+      "nameTa": "உள்ளகரம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position spaced evenly between its neighbours on the real track (indicative). Tamil name from OpenStreetMap, not verified. Under construction."
+    },
+    {
+      "id": "madipakkam",
+      "name": "Madipakkam",
+      "nameTa": "மடிப்பாக்கம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name locality on the track (approximate). Tamil name from OpenStreetMap, not verified. Under construction."
+    },
+    {
+      "id": "kilkattalai",
+      "name": "Kilkattalai",
+      "nameTa": "கீழ்க்கட்டளை",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name bus stop on the track (approximate). Tamil name from OpenStreetMap, not verified. Under construction."
+    },
+    {
+      "id": "echangadu",
+      "name": "Echangadu",
+      "nameTa": "ஈச்சங்காடு",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name bus stop on the track (approximate). Tamil name from OpenStreetMap, not verified. Under construction."
+    },
+    {
+      "id": "kovilambakkam",
+      "name": "Kovilambakkam",
+      "nameTa": "கோவிலம்பாக்கம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name bus stop on the track (approximate). Tamil name from OpenStreetMap, not verified. Under construction."
+    },
+    {
+      "id": "vellakkal",
+      "name": "Vellakkal",
+      "nameTa": "வெள்ளைக்கல்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name bus stop on the track (approximate). Tamil name from OpenStreetMap, not verified. Under construction."
+    },
+    {
+      "id": "medavakkam-i",
+      "name": "Medavakkam I",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name bus stop on the track (approximate). Under construction."
+    },
+    {
+      "id": "medavakkam-ii",
+      "name": "Medavakkam II",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name bus stop on the track (approximate). Under construction."
+    },
+    {
+      "id": "perumbakkam",
+      "name": "Perumbakkam",
+      "nameTa": "பெரும்பாக்கம்",
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position at the same-name locality on the track (approximate). Tamil name from OpenStreetMap, not verified. Under construction."
+    },
+    {
+      "id": "classical-tamil-institute",
+      "name": "Classical Tamil Institute",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position spaced evenly between its neighbours on the real track (indicative). Under construction."
+    },
+    {
+      "id": "elcot",
+      "name": "Elcot",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [],
+      "type": "elevated",
+      "service": "stop",
+      "coordinates": null,
+      "notes": "Not yet mapped in OpenStreetMap: name and order from Wikipedia — Red Line (Chennai Metro), station list (2026-10-05); position spaced evenly between its neighbours on the real track (indicative). Under construction."
     }
   ]
 }
