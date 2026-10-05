@@ -670,3 +670,80 @@ export function drawRouteMap(tex: CanvasTexture, items: readonly RouteMapItem[],
   }
   tex.needsUpdate = true;
 }
+
+/**
+ * Crash-barrier chevrons, as painted on Chennai flyover parapets: black
+ * chevrons on white, one per 1.2 m (the barrier geometry maps u along the
+ * road in 1.2 m repeats, v from the deck to the barrier top).
+ */
+export function makeChevronTexture(): Texture {
+  const W = 128;
+  const H = 128;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#e9e7e1";
+  ctx.fillRect(0, 0, W, H);
+  // A ">" across the face: the band runs from bottom-left up to the middle, then back down.
+  ctx.fillStyle = "#1b1c1e";
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(W * 0.45, 0);
+  ctx.lineTo(W * 0.95, H / 2);
+  ctx.lineTo(W * 0.45, H);
+  ctx.lineTo(0, H);
+  ctx.lineTo(W * 0.5, H / 2);
+  ctx.closePath();
+  ctx.fill();
+  // Weathering: a grey band at the foot.
+  ctx.fillStyle = "rgba(90,88,84,0.35)";
+  ctx.fillRect(0, H - 10, W, 10);
+  const tex = new CanvasTexture(c);
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = ClampToEdgeWrapping;
+  tex.colorSpace = SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/**
+ * Footbridge roof cladding: white panels in a diamond lattice with grey
+ * seams (Poonamallee Bypass FOB). One 2 m x 2 m repeat.
+ */
+export function makeDiamondPanelTexture(): Texture {
+  const S = 128;
+  const c = document.createElement("canvas");
+  c.width = S;
+  c.height = S;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#f1f2f0";
+  ctx.fillRect(0, 0, S, S);
+  ctx.strokeStyle = "#9aa0a4";
+  ctx.lineWidth = 3;
+  // Diamonds: two families of diagonals, plus a faint shade on alternate facets.
+  for (let k = -S; k <= 2 * S; k += S / 2) {
+    ctx.beginPath();
+    ctx.moveTo(k, 0);
+    ctx.lineTo(k + S, S);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(k, S);
+    ctx.lineTo(k + S, 0);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(120,128,134,0.12)";
+  ctx.beginPath();
+  ctx.moveTo(S / 2, 0);
+  ctx.lineTo(S * 0.75, S / 4);
+  ctx.lineTo(S / 2, S / 2);
+  ctx.lineTo(S / 4, S / 4);
+  ctx.closePath();
+  ctx.fill();
+  const tex = new CanvasTexture(c);
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = RepeatWrapping;
+  tex.colorSpace = SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}

@@ -13,7 +13,7 @@
     "method": "Centripetal Catmull–Rom spline through station coordinates. Not a surveyed alignment: the real viaduct follows Trunk Road / Mount–Poonamallee Road and Arcot Road, which curve between stations.",
     "status": "approximate",
     "railLevelM": {
-      "value": 18.0,
+      "value": 18,
       "status": "assumed",
       "note": "Raised from 12.5 m so the metro, its station concourses and steel portals clear road traffic on the MGR flyover at Porur Junction (flyover deck about 6.7 m, buses about 3.2 m on top)."
     },
@@ -246,6 +246,28 @@
           "lengthM": 1500
         }
       }
+    ],
+    "footbridges": [
+      {
+        "id": "poonamallee-bypass-fob",
+        "station": "poonamallee-bypass",
+        "alongM": -35,
+        "side": "south",
+        "fromLateralM": 17,
+        "toLateralM": 88,
+        "floorM": 10.5,
+        "widthM": 4.5,
+        "supportsAtM": [
+          44
+        ],
+        "tower": {
+          "sizeM": 8,
+          "heightM": 14
+        },
+        "status": "approximate",
+        "note": "Covered steel truss footbridge from the station concourse across NH48 (Chennai–Bengaluru Highway) to a stair/lift tower on the south side. Span, position and support traced from satellite and street photos supplied by the project owner; dimensions estimated from them.",
+        "source": "Project owner: satellite views and street photos of Poonamallee Bypass metro (2026-10-05)"
+      }
     ]
   },
   "rollingStock": {
@@ -292,7 +314,7 @@
   "operations": {
     "status": "assumed",
     "note": "CMRL has not published Line 4 dwell times or acceleration figures. These are typical values for modern metro trainsets.",
-    "accelerationMps2": 1.0,
+    "accelerationMps2": 1,
     "serviceBrakeMps2": 0.85,
     "maxBrakeMps2": 1.1,
     "jerkMps3": 0.75,

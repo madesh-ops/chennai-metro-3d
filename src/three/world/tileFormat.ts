@@ -10,6 +10,7 @@
  *   building u8 kind, u8 colour, u16 height (dm), u16 front edge (0xffff none),
  *            u8 flags, u8 floors, u16 n, n × (i16 x, i16 z)   — outer ring, no repeat
  *   road     u8 class, u8 width (0.25 m), u8 flags, u8 layer, u16 n, n × (i16 x, i16 z)
+ *            [flags bit 1: then n × u8 height of the road surface (0.1 m) — flyovers and ramps]
  *   area     u8 kind, u8 0, u16 n, n × (i16 x, i16 z)          — clipped to the tile
  *   tree     u8 type, i16 x, i16 z
  *
@@ -64,6 +65,8 @@ export interface TileRoad {
   bridge: boolean;
   layer: number;
   line: Float32Array;
+  /** Road-surface height per point (m) on flyovers and their ramps; absent at ground level. */
+  heights?: Float32Array;
 }
 
 export interface TileArea {
@@ -141,7 +144,13 @@ export function decodeTile(buf: ArrayBuffer): TileData {
     const flags = u8();
     const layer = u8();
     const n = u16();
-    roads.push({ cls, width, bridge: (flags & 1) === 1, layer, line: ring(n) });
+    const line = ring(n);
+    let heights: Float32Array | undefined;
+    if (flags & 2) {
+      heights = new Float32Array(n);
+      for (let k = 0; k < n; k++) heights[k] = u8() / 10;
+    }
+    roads.push({ cls, width, bridge: (flags & 1) === 1, layer, line, heights });
   }
   const areas: TileArea[] = [];
   for (let i = 0; i < na; i++) {

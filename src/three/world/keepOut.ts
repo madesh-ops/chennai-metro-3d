@@ -3,6 +3,7 @@ import { ROAD } from "../layout.ts";
 import { landmarkFootprints } from "../landmarkLayout.ts";
 import { branchLayout } from "../line5Layout.ts";
 import { makeKeepOut, type KeepOutData } from "./keepOutCore.ts";
+import { dataBundle } from "../../simulation/data.ts";
 import type { KeepOut } from "./worldGeometry.ts";
 
 /** Rail heights: viaduct over a road, open trough / at grade, tunnel (as Track.tsx). */
@@ -51,7 +52,29 @@ export function routeKeepOutData(route: RouteModel, range: [number, number]): Ke
   }
   // Line 5 branch viaducts and the roads under them.
   for (const s of branchLayout(route)?.samples ?? []) add(s.x, s.z, s.half);
-  return { circles, rects };
+  // Curated footbridges and their stair/lift towers.
+  for (const f of dataBundle.tracks.structures.footbridges ?? []) {
+    const st = route.stationById.get(f.station);
+    if (!st) continue;
+    const d = st.distance + f.alongM;
+    const c = alignment.point(d);
+    const r = alignment.offsetPoint(d, 10);
+    const dir = { south: [0, 1], north: [0, -1], east: [1, 0], west: [-1, 0] }[f.side];
+    const sign = (r.x - c.x) * dir[0] + (r.z - c.z) * dir[1] >= 0 ? 1 : -1;
+    for (let l = f.fromLateralM; l <= f.toLateralM + f.tower.sizeM; l += 4) {
+      alignment.offsetPoint(d, sign * l, p);
+      add(p.x, p.z, f.widthM / 2 + (l > f.toLateralM ? f.tower.sizeM / 2 + 2 : 2));
+    }
+  }
+  // Flyovers the scene draws itself (the MGR flyover at Porur): OSM's deck is skipped there.
+  const flyovers: number[] = [];
+  for (const f of route.flyovers) {
+    for (let s = f.startS - 40; s <= f.endS + 40; s += 10) {
+      const q = f.road.alignment.point(s);
+      flyovers.push(q.x, q.z, f.halfWidth + 8);
+    }
+  }
+  return { circles, rects, flyovers };
 }
 
 export function routeKeepOut(route: RouteModel, range: [number, number]): KeepOut {

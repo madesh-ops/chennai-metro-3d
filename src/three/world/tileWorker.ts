@@ -8,7 +8,7 @@
 import { Color } from "three";
 import { decodeTile } from "./tileFormat.ts";
 import { packedBuffers, packTile, type BuildOptions } from "./worldGeometry.ts";
-import { makeKeepOut, type KeepOutData } from "./keepOutCore.ts";
+import { makeKeepOut, makeOwnFlyover, type KeepOutData } from "./keepOutCore.ts";
 
 export type WorkerRequest =
   | { type: "init"; gen: number; base: string; palette: string[]; keep: KeepOutData; signCells: number; treeDensity: number }
@@ -38,7 +38,13 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
   if (msg.type === "init") {
     gen = msg.gen;
     base = msg.base;
-    opts = { palette: msg.palette.map((c) => new Color(c)), keep: makeKeepOut(msg.keep), signCells: msg.signCells, treeDensity: msg.treeDensity };
+    opts = {
+      palette: msg.palette.map((c) => new Color(c)),
+      keep: makeKeepOut(msg.keep),
+      ownFlyover: makeOwnFlyover(msg.keep),
+      signCells: msg.signCells,
+      treeDensity: msg.treeDensity,
+    };
     return;
   }
   const g = msg.gen;

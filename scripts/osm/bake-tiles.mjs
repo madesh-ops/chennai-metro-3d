@@ -159,9 +159,10 @@ function clipSeg(a, b, x0, z0, x1, z1) {
       }
     }
   }
+  const dh = (b[2] ?? 0) - (a[2] ?? 0);
   return [
-    [a[0] + t0 * dx, a[1] + t0 * dz],
-    [a[0] + t1 * dx, a[1] + t1 * dz],
+    [a[0] + t0 * dx, a[1] + t0 * dz, (a[2] ?? 0) + t0 * dh],
+    [a[0] + t1 * dx, a[1] + t1 * dz, (a[2] ?? 0) + t1 * dh],
   ];
 }
 
@@ -416,16 +417,23 @@ async function main() {
   console.log(`loaded ${buildings.size} buildings, ${roads.size} roads, ${areas.size} areas, ${trees.size} trees from ${tiles.length} tiles`);
   const tileSet = new Set(tiles.map((t) => t.key));
 
+  // Elevation of every road point (flyovers, their ramps), before simplifying.
+  const heights = roadHeights(roads);
+  let elevated = 0;
+
   // Roads: projected, simplified, classified; indexed by segment.
   const roadList = [];
   const roadGrid = new Grid(40);
   for (const [id, r] of roads) {
     const cls = ROAD_CLASS[r.tags.highway];
-    const line = simplify(r.line, 0.4);
+    const hs = heights.get(id);
+    // Raised roads keep every point (the height profile lives on them); others are simplified.
+    const line = hs ? r.line.map((p, i) => [p[0], p[1], hs[i]]) : simplify(r.line, 0.4);
+    if (hs) elevated++;
     const width = roadWidth(r.tags, cls);
     const layer = Math.max(0, Math.min(5, num(r.tags.layer) || 0));
     const bridge = (r.tags.bridge && r.tags.bridge !== "no") || layer > 0;
-    const road = { id, cls, width, bridge, layer, line, name: r.tags.name };
+    const road = { id, cls, width, bridge, layer, line, name: r.tags.name, raised: Boolean(hs && hs.some((v) => v > 1)) };
     roadList.push(road);
     for (let i = 1; i < line.length; i++) {
       const seg = { road, a: line[i - 1], b: line[i] };
@@ -477,7 +485,7 @@ async function main() {
     bList.push(item);
     bGrid.add(item, box);
   }
-  console.log(`kept ${bList.length} OSM buildings`);
+  console.log(`kept ${bList.length} OSM buildings; ${elevated} raised roads (flyovers and ramps)`);
 
   const tilesOut = new Map(tiles.map((t) => [t.key, { ...t, buildings: [], roads: [], areas: [], trees: [] }]));
   const tileOf = (x, z) => `${Math.floor(x / TILE_M)}_${Math.floor(z / TILE_M)}`;
@@ -565,7 +573,7 @@ async function main() {
     const tileRoads = new Set();
     for (const s of roadGrid.query(x0, z0, x0 + TILE_M, z0 + TILE_M)) tileRoads.add(s.road);
     for (const road of [...tileRoads].sort((a, b) => a.id - b.id)) {
-      if (road.cls > 4 || road.bridge) continue;
+      if (road.cls > 4 || road.bridge || road.raised) continue;
       const main = road.cls <= 2;
       for (const piece of clipLine(road.line, x0, z0, x0 + TILE_M, z0 + TILE_M)) {
         for (const side of [-1, 1]) {
@@ -637,7 +645,11 @@ async function main() {
     return false;
   };
   const onRoad = (x, z) => {
-    for (const s of roadGrid.query(x - 20, z - 20, x + 20, z + 20)) if (distPointSeg(x, z, s.a[0], s.a[1], s.b[0], s.b[1]) < s.road.width / 2 + 0.6) return true;
+    for (const s of roadGrid.query(x - 20, z - 20, x + 20, z + 20)) {
+      // Raised roads: keep crowns clear of the deck and barriers too.
+      const clear = s.road.width / 2 + (s.road.raised ? 7 : 0.6);
+      if (distPointSeg(x, z, s.a[0], s.a[1], s.b[0], s.b[1]) < clear) return true;
+    }
     return false;
   };
   let treeCount = 0;
@@ -655,7 +667,7 @@ async function main() {
       for (const piece of clipLine(road.line, x0, z0, x1, z1)) {
         tile.roads.push({ cls: road.cls, width: road.width, bridge: road.bridge, layer: road.layer, line: piece });
         // Street trees along the kerbs of ordinary streets and main roads.
-        if (road.cls > 4 || road.bridge) continue;
+        if (road.cls > 4 || road.bridge || road.raised) continue;
         const every = road.cls <= 2 ? 16 : 22;
         for (let i = 1; i < piece.length; i++) {
           const [ax, az] = piece[i - 1];
@@ -770,7 +782,7 @@ function encode(tile) {
   const oz = tile.tz * TILE_M;
   let size = 4 + 4 + 16;
   for (const b of tile.buildings) size += 10 + b.ring.length * 4;
-  for (const r of tile.roads) size += 6 + r.line.length * 4;
+  for (const r of tile.roads) size += 6 + r.line.length * 4 + (raised(r) ? r.line.length : 0);
   for (const a of tile.areas) size += 4 + a.ring.length * 4;
   size += tile.trees.length * 5;
   const buf = Buffer.alloc(size);
@@ -805,10 +817,12 @@ function encode(tile) {
   for (const r of tile.roads) {
     u8(r.cls);
     u8(Math.min(255, Math.round(r.width * 4)));
-    u8(r.bridge ? 1 : 0);
+    const hasH = raised(r);
+    u8((r.bridge ? 1 : 0) | (hasH ? 2 : 0));
     u8(r.layer);
     u16(r.line.length);
     pts(r.line);
+    if (hasH) for (const p of r.line) u8(Math.max(0, Math.min(255, Math.round((p[2] ?? 0) * 10))));
   }
   for (const a of tile.areas) {
     u8(a.kind);
@@ -829,3 +843,116 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
+
+/** A road piece with any point raised above the ground (heights stored per point). */
+function raised(r) {
+  return r.line.some((p) => (p[2] ?? 0) > 0.05);
+}
+
+/** Deck height (m, road surface) of a flyover on OSM layer n. */
+const DECK = (layer) => 7.5 + 6 * (Math.max(1, layer) - 1);
+/** Approach ramps fall at this grade from a flyover's ends. */
+const RAMP_GRADE = 0.04;
+
+/**
+ * Height of every point of every road, keyed by road id (only roads with a
+ * raised point are returned). A bridge counts as a flyover when it crosses
+ * another road, or joins a bridge that is one (the loops of an interchange);
+ * other bridges (over canals) stay on the ground. Flyover points sit at the
+ * deck height of their layer; from there the connected roads ramp down at
+ * RAMP_GRADE until they meet the ground.
+ */
+function roadHeights(roads) {
+  const key = (p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`;
+  const isBridge = (t) => t.bridge && t.bridge !== "no" && !(t.tunnel && t.tunnel !== "no");
+  const layerOf = (t) => Math.max(0, Math.min(5, num(t.layer) || 0));
+  // Ground road segments, for the "does this bridge cross a road" test.
+  const grid = new Grid(50);
+  for (const [id, r] of roads) {
+    if (isBridge(r.tags)) continue;
+    for (let i = 1; i < r.line.length; i++) grid.add({ id, a: r.line[i - 1], b: r.line[i] }, bbox([r.line[i - 1], r.line[i]]));
+  }
+  const crossesRoad = (r) => {
+    for (let i = 1; i < r.line.length; i++) {
+      const a = r.line[i - 1];
+      const b = r.line[i];
+      for (const s of grid.query(...bbox([a, b]))) if (segsCross(a, b, s.a, s.b)) return true;
+    }
+    return false;
+  };
+  const bridges = [...roads].filter(([, r]) => isBridge(r.tags));
+  const flyover = new Set(bridges.filter(([, r]) => crossesRoad(r)).map(([id]) => id));
+  // Spread to bridges joined to a flyover (interchange loops, multi-span decks).
+  const byVertex = new Map();
+  for (const [id, r] of bridges) {
+    for (const p of [r.line[0], r.line[r.line.length - 1]]) {
+      const k = key(p);
+      if (!byVertex.has(k)) byVertex.set(k, []);
+      byVertex.get(k).push(id);
+    }
+  }
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [id, r] of bridges) {
+      if (flyover.has(id)) continue;
+      if ([r.line[0], r.line[r.line.length - 1]].some((p) => (byVertex.get(key(p)) ?? []).some((o) => flyover.has(o)))) {
+        flyover.add(id);
+        grew = true;
+      }
+    }
+  }
+  // Heights: fixed on flyovers, falling away along every connected road.
+  const h = new Map(); // vertex key -> height
+  const adj = new Map(); // vertex key -> [{ k, len }]
+  const link = (a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    const len = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    if (!adj.has(ka)) adj.set(ka, []);
+    if (!adj.has(kb)) adj.set(kb, []);
+    adj.get(ka).push({ k: kb, len });
+    adj.get(kb).push({ k: ka, len });
+  };
+  const queue = [];
+  for (const [id, r] of roads) {
+    for (let i = 1; i < r.line.length; i++) link(r.line[i - 1], r.line[i]);
+    if (!flyover.has(id)) continue;
+    const H = DECK(layerOf(r.tags));
+    for (const p of r.line) {
+      const k = key(p);
+      if ((h.get(k) ?? 0) < H) {
+        h.set(k, H);
+        queue.push(k);
+      }
+    }
+  }
+  const fixed = new Set(h.keys());
+  // Highest first: each vertex takes the best height any flyover can give it down a ramp.
+  queue.sort((a, b) => h.get(a) - h.get(b));
+  while (queue.length) {
+    const k = queue.pop();
+    const hk = h.get(k);
+    for (const { k: n, len } of adj.get(k) ?? []) {
+      if (fixed.has(n)) continue;
+      const v = hk - RAMP_GRADE * len;
+      if (v <= 0.05 || v <= (h.get(n) ?? 0)) continue;
+      h.set(n, v);
+      // Keep the queue roughly ordered (insert by height).
+      let lo = 0;
+      let hi = queue.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (h.get(queue[mid]) < v) lo = mid + 1;
+        else hi = mid;
+      }
+      queue.splice(lo, 0, n);
+    }
+  }
+  const out = new Map();
+  for (const [id, r] of roads) {
+    const hs = r.line.map((p) => h.get(key(p)) ?? 0);
+    if (hs.some((v) => v > 0.05)) out.set(id, hs);
+  }
+  console.log(`flyovers: ${flyover.size} of ${bridges.length} bridges`);
+  return out;
+}

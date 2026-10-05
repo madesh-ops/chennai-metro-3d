@@ -19,7 +19,7 @@ import { useScene } from "../SceneContext.tsx";
 import { createFootprintBuildingMaterial } from "../materials.ts";
 import { createSignMaterial, palmGeometry } from "../City.tsx";
 import { ORDER } from "../Ground.tsx";
-import { ensureFontsLoaded, makeSignAtlasTexture } from "../textures.ts";
+import { ensureFontsLoaded, makeChevronTexture, makeSignAtlasTexture } from "../textures.ts";
 import { SIGN_CELLS, signAtlasNames } from "../shopNames.ts";
 import { TILE_M } from "./tileFormat.ts";
 import { unpackGeometry, type PackedInstances, type PackedTile } from "./worldGeometry.ts";
@@ -62,14 +62,16 @@ interface Live {
   state: "loading" | "ready" | "built";
   packed?: PackedTile;
   group?: Group;
-  /** Building quadrant meshes (shadow casting toggled by distance) and tree meshes. */
+  /** Building quadrant meshes (shadow casting toggled by distance), tree and flyover meshes. */
   quads: Mesh[];
-  trees: InstancedMesh[];
+  trees: (InstancedMesh | Mesh)[];
 }
 
 interface Shared {
   building: MeshStandardMaterial;
   flat: MeshStandardMaterial;
+  deck: MeshStandardMaterial;
+  barrier: MeshStandardMaterial;
   trunk: MeshStandardMaterial;
   foliage: MeshStandardMaterial;
   tank: MeshStandardMaterial;
@@ -100,6 +102,18 @@ function buildGroup(t: Live, p: PackedTile, shared: Shared): Group {
     m.renderOrder = ORDER.cross;
     m.matrixAutoUpdate = false;
     group.add(m);
+  }
+  // Flyovers and ramps: structure, then the chevron crash barriers.
+  for (const [g, mat] of [
+    [p.decks, shared.deck],
+    [p.barriers, shared.barrier],
+  ] as const) {
+    if (!g) continue;
+    const m = new Mesh(unpackGeometry(g), mat);
+    m.receiveShadow = true;
+    m.matrixAutoUpdate = false;
+    group.add(m);
+    t.trees.push(m);
   }
   for (const b of p.buildings) {
     const m = new Mesh(unpackGeometry(b.geometry), shared.building);
@@ -158,6 +172,8 @@ export function WorldTiles({ shadows }: { shadows: boolean }) {
     return {
       building: createFootprintBuildingMaterial(env),
       flat: new MeshStandardMaterial({ vertexColors: true, roughness: 0.93, depthWrite: false }),
+      deck: new MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
+      barrier: new MeshStandardMaterial({ map: makeChevronTexture(), roughness: 0.75 }),
       trunk: new MeshStandardMaterial({ color: "#ffffff", roughness: 0.95 }),
       foliage: new MeshStandardMaterial({ color: "#ffffff", roughness: 0.9, flatShading: true }),
       tank: new MeshStandardMaterial({ color: "#1f2328", roughness: 0.6 }),
@@ -286,7 +302,8 @@ export function WorldTiles({ shadows }: { shadows: boolean }) {
   useEffect(
     () => () => {
       Object.values(shared.geo).forEach((g) => g.dispose());
-      [shared.building, shared.flat, shared.trunk, shared.foliage, shared.tank, shared.sign].forEach((m) => m.dispose());
+      shared.barrier.map?.dispose();
+      [shared.building, shared.flat, shared.deck, shared.barrier, shared.trunk, shared.foliage, shared.tank, shared.sign].forEach((m) => m.dispose());
     },
     [shared],
   );
@@ -351,7 +368,7 @@ export function WorldTiles({ shadows }: { shadows: boolean }) {
           const [cx, cz] = m.userData.centre as [number, number];
           m.castShadow = shadows && Math.hypot(cx - train.x, cz - train.z) < SHADOW_REACH;
         }
-        const near = shadows && rectDist(t.tx, t.tz, train.x, train.z) < 200;
+        const near = shadows && rectDist(t.tx, t.tz, train.x, train.z) < 250;
         for (const m of t.trees) m.castShadow = near;
       }
     }

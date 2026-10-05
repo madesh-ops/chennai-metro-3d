@@ -15,6 +15,9 @@ const WALL_FOOT = -0.6;
 const FLAT_Y = 0.02;
 
 export interface TileGeometry {
+  /** Flyover and ramp structures, and their crash barriers (chevron uvs). */
+  decks: BufferGeometry | null;
+  barriers: BufferGeometry | null;
   /** Buildings in quadrants of the tile (centre of each), so far ones can skip the shadow pass and be culled. */
   buildings: { cx: number; cz: number; geometry: BufferGeometry }[];
   flat: BufferGeometry | null;
@@ -397,6 +400,8 @@ export interface BuildOptions {
   signCells: number;
   /** 0..1: share of trees kept (lower quality settings). */
   treeDensity: number;
+  /** Where the scene models a flyover itself (OSM's is then not built). */
+  ownFlyover?: (x: number, z: number) => boolean;
 }
 
 export function buildTileGeometry(tile: TileData, opts: BuildOptions): TileGeometry {
@@ -425,9 +430,19 @@ export function buildTileGeometry(tile: TileData, opts: BuildOptions): TileGeome
     const geometry = buildBuildings(list, opts.palette, seed + q);
     if (geometry) buildings.push({ cx: x0 + (q & 1 ? 1.5 : 0.5) * half, cz: z0 + (q & 2 ? 1.5 : 0.5) * half, geometry });
   });
+  // Raised roads become structures, except where the scene draws its own flyover.
+  const { ground, raised } = splitRaised(tile.roads);
+  const own = opts.ownFlyover ?? (() => false);
+  const built = raised.filter((r) => {
+    const m = Math.floor(r.line.length / 4) * 2;
+    return !own(r.line[m], r.line[m + 1]);
+  });
+  const structures = buildRaised(built);
   const out: TileGeometry = {
     buildings,
-    flat: buildFlat(tile.roads, tile.areas),
+    decks: structures.deck,
+    barriers: structures.barriers,
+    flat: buildFlat(ground, tile.areas),
     trunks: { matrices: [], colors: [] },
     crowns: { matrices: [], colors: [] },
     palms: { matrices: [], colors: [] },
@@ -466,6 +481,8 @@ export interface PackedInstances {
 export interface PackedTile {
   key: string;
   flat: PackedGeometry | null;
+  decks: PackedGeometry | null;
+  barriers: PackedGeometry | null;
   buildings: { cx: number; cz: number; geometry: PackedGeometry }[];
   trunks: PackedInstances;
   crowns: PackedInstances;
@@ -502,6 +519,8 @@ export function packTile(key: string, tile: TileData, opts: BuildOptions): Packe
   return {
     key,
     flat: g.flat ? packGeometry(g.flat) : null,
+    decks: g.decks ? packGeometry(g.decks) : null,
+    barriers: g.barriers ? packGeometry(g.barriers) : null,
     buildings: g.buildings.map((b) => ({ cx: b.cx, cz: b.cz, geometry: packGeometry(b.geometry) })),
     trunks: packInstances(g.trunks),
     crowns: packInstances(g.crowns),
@@ -517,6 +536,8 @@ export function packedBuffers(p: PackedTile): ArrayBuffer[] {
   const out: ArrayBuffer[] = [];
   const geo = (g: PackedGeometry | null) => g?.attrs.forEach((a) => out.push(a.array.buffer as ArrayBuffer));
   geo(p.flat);
+  geo(p.decks);
+  geo(p.barriers);
   p.buildings.forEach((b) => geo(b.geometry));
   for (const l of [p.trunks, p.crowns, p.palms, p.tanks, p.signs]) out.push(l.matrices.buffer as ArrayBuffer, l.colors.buffer as ArrayBuffer);
   out.push(p.signs.cells.buffer as ArrayBuffer, p.heights.rings.buffer as ArrayBuffer, p.heights.offsets.buffer as ArrayBuffer, p.heights.h.buffer as ArrayBuffer);
@@ -529,4 +550,220 @@ export function unpackGeometry(p: PackedGeometry): BufferGeometry {
   for (const a of p.attrs) g.setAttribute(a.name, new BufferAttribute(a.array, a.size));
   g.computeBoundingSphere();
   return g;
+}
+
+/* ------------------------------------------------------------------ */
+/* Flyovers and ramps                                                   */
+/* ------------------------------------------------------------------ */
+
+/** Points above this (m) are on a structure; below, the road is painted on the ground. */
+const RAISED = 0.3;
+/** From this height the deck stands on piers; below it the ramp is a walled embankment. */
+const ON_PIERS = 4.5;
+const DECK_DEPTH = 1.3;
+const SHOULDER = 0.6;
+const BARRIER_H = 1.0;
+const BARRIER_T = 0.4;
+const PIER_SPACING = 30;
+const CONCRETE = "#b9b6ae";
+const CONCRETE_DARK = "#9d9a93";
+const RE_WALL = "#c8c3b8";
+
+/** Split roads into ground pieces (painted flat) and raised runs (built as structures). */
+export function splitRaised(roads: TileRoad[]): { ground: TileRoad[]; raised: TileRoad[] } {
+  const ground: TileRoad[] = [];
+  const raised: TileRoad[] = [];
+  for (const r of roads) {
+    const h = r.heights;
+    if (!h) {
+      ground.push(r);
+      continue;
+    }
+    const n = h.length;
+    // A segment is raised if either end is; runs of raised segments become structures.
+    let i = 0;
+    while (i < n - 1) {
+      const up = h[i] > RAISED || h[i + 1] > RAISED;
+      let j = i + 1;
+      while (j < n - 1 && (h[j] > RAISED || h[j + 1] > RAISED) === up) j++;
+      const line = r.line.slice(i * 2, (j + 1) * 2);
+      if (up) raised.push({ ...r, line, heights: h.slice(i, j + 1) });
+      else ground.push({ ...r, line, heights: undefined });
+      i = j;
+    }
+  }
+  return { ground, raised };
+}
+
+type P3 = [number, number, number];
+
+class Solid {
+  pos: number[] = [];
+  nor: number[] = [];
+  col: number[] = [];
+  uv: number[] = [];
+  private c = new Color();
+  /** Quad A-B-C-D (either winding), turned to face `face`, with optional uvs per corner. */
+  quad(p: P3[], face: P3, colour: string, uv?: [number, number][]) {
+    const [A, B, C] = p;
+    const ax = B[0] - A[0];
+    const ay = B[1] - A[1];
+    const az = B[2] - A[2];
+    const bx = C[0] - A[0];
+    const by = C[1] - A[1];
+    const bz = C[2] - A[2];
+    const nx = ay * bz - az * by;
+    const ny = az * bx - ax * bz;
+    const nz = ax * by - ay * bx;
+    const flip = nx * face[0] + ny * face[1] + nz * face[2] < 0;
+    const order = flip ? [0, 2, 1, 0, 3, 2] : [0, 1, 2, 0, 2, 3];
+    const l = Math.hypot(face[0], face[1], face[2]) || 1;
+    this.c.set(colour);
+    for (const k of order) {
+      this.pos.push(p[k][0], p[k][1], p[k][2]);
+      this.nor.push(face[0] / l, face[1] / l, face[2] / l);
+      this.col.push(this.c.r, this.c.g, this.c.b);
+      if (uv) this.uv.push(uv[k][0], uv[k][1]);
+    }
+  }
+  /** Box: centre, unit direction u in plan, half along / across, y0..y1. */
+  box(cx: number, cz: number, ux: number, uz: number, ha: number, hc: number, y0: number, y1: number, colour: string) {
+    const nx = uz;
+    const nz = -ux;
+    const c = (sa: number, sc: number, y: number): P3 => [cx + ux * ha * sa + nx * hc * sc, y, cz + uz * ha * sa + nz * hc * sc];
+    this.quad([c(-1, -1, y1), c(1, -1, y1), c(1, 1, y1), c(-1, 1, y1)], [0, 1, 0], colour);
+    this.quad([c(1, -1, y0), c(1, 1, y0), c(1, 1, y1), c(1, -1, y1)], [ux, 0, uz], colour);
+    this.quad([c(-1, -1, y0), c(-1, 1, y0), c(-1, 1, y1), c(-1, -1, y1)], [-ux, 0, -uz], colour);
+    this.quad([c(-1, 1, y0), c(1, 1, y0), c(1, 1, y1), c(-1, 1, y1)], [nx, 0, nz], colour);
+    this.quad([c(-1, -1, y0), c(1, -1, y0), c(1, -1, y1), c(-1, -1, y1)], [-nx, 0, -nz], colour);
+  }
+  geometry(withUv = false): BufferGeometry | null {
+    if (!this.pos.length) return null;
+    const g = new BufferGeometry();
+    g.setAttribute("position", new BufferAttribute(new Float32Array(this.pos), 3));
+    g.setAttribute("normal", new BufferAttribute(new Float32Array(this.nor), 3));
+    g.setAttribute("color", new BufferAttribute(new Float32Array(this.col), 3));
+    if (withUv) g.setAttribute("uv", new BufferAttribute(new Float32Array(this.uv), 2));
+    g.computeBoundingSphere();
+    return g;
+  }
+}
+
+/**
+ * Flyover decks and ramps from raised road runs: road surface with lane
+ * markings, deck slab and fascia, walled embankment on the low ramps, piers
+ * with hammerhead caps under the high spans, and crash barriers both sides
+ * (uv mapped for the black-and-white chevron texture).
+ */
+export function buildRaised(raised: TileRoad[]): { deck: BufferGeometry | null; barriers: BufferGeometry | null } {
+  const deck = new Solid();
+  const bars = new Solid();
+  for (const r of raised) {
+    const line = r.line;
+    const h = r.heights!;
+    const n = h.length;
+    if (n < 2) continue;
+    const half = r.width / 2 + SHOULDER;
+    const surface = ROAD_COLOUR[Math.min(r.cls, 3)];
+    // Mitred offsets per point (as the flat ribbon).
+    const off: [number, number][] = [];
+    const seg = (a: number, b: number): [number, number] => {
+      const dx = line[b * 2] - line[a * 2];
+      const dz = line[b * 2 + 1] - line[a * 2 + 1];
+      const l = Math.hypot(dx, dz) || 1;
+      return [dz / l, -dx / l];
+    };
+    for (let i = 0; i < n; i++) {
+      const s0 = i > 0 ? seg(i - 1, i) : null;
+      const s1 = i < n - 1 ? seg(i, i + 1) : null;
+      if (s0 && s1) {
+        let nx = s0[0] + s1[0];
+        let nz = s0[1] + s1[1];
+        const l = Math.hypot(nx, nz) || 1;
+        nx /= l;
+        nz /= l;
+        const k = 1 / Math.max(0.5, nx * s0[0] + nz * s0[1]);
+        off.push([nx * k, nz * k]);
+      } else off.push((s0 ?? s1)!);
+    }
+    const P = (i: number, lat: number, y: number): P3 => [line[i * 2] + off[i][0] * lat, y, line[i * 2 + 1] + off[i][1] * lat];
+    const bottom = (i: number) => (h[i] >= ON_PIERS ? h[i] - DECK_DEPTH : 0);
+    const lanes = Math.max(1, Math.round(r.width / 3.5));
+    let along = 0;
+    let nextPier = PIER_SPACING / 2;
+    for (let i = 0; i < n - 1; i++) {
+      const j = i + 1;
+      const len = Math.hypot(line[j * 2] - line[i * 2], line[j * 2 + 1] - line[i * 2 + 1]);
+      if (len < 0.05) continue;
+      const ux = (line[j * 2] - line[i * 2]) / len;
+      const uz = (line[j * 2 + 1] - line[i * 2 + 1]) / len;
+      const nx = uz;
+      const nz = -ux;
+      const yi = h[i] + 0.04;
+      const yj = h[j] + 0.04;
+      // Road surface.
+      deck.quad([P(i, -half, yi), P(j, -half, yj), P(j, half, yj), P(i, half, yi)], [0, 1, 0], surface);
+      // Fascia / embankment walls, and the soffit where the deck is on piers.
+      for (const s of [-1, 1]) {
+        deck.quad([P(i, s * half, bottom(i)), P(j, s * half, bottom(j)), P(j, s * half, yj), P(i, s * half, yi)], [nx * s, 0, nz * s], h[i] >= ON_PIERS ? CONCRETE : RE_WALL);
+      }
+      if (bottom(i) > 0 && bottom(j) > 0) {
+        deck.quad([P(i, -half, bottom(i)), P(j, -half, bottom(j)), P(j, half, bottom(j)), P(i, half, bottom(i))], [0, -1, 0], CONCRETE_DARK);
+      }
+      // Lane lines: dashed between lanes, solid at the edges.
+      for (let k = 0; k <= lanes; k++) {
+        const lat = -r.width / 2 + 0.3 + ((r.width - 0.6) * k) / lanes;
+        const edge = k === 0 || k === lanes;
+        const at = (t: number, dl: number): P3 => [
+          line[i * 2] + (line[j * 2] - line[i * 2]) * t + nx * (lat + dl),
+          yi + (yj - yi) * t + 0.02,
+          line[i * 2 + 1] + (line[j * 2 + 1] - line[i * 2 + 1]) * t + nz * (lat + dl),
+        ];
+        for (let s = edge ? 0 : (8 - (along % 8)) % 8; s < len; s += edge ? len : 8) {
+          const e = Math.min(len, s + (edge ? len : 3));
+          deck.quad([at(s / len, -0.08), at(e / len, -0.08), at(e / len, 0.08), at(s / len, 0.08)], [0, 1, 0], MARKING);
+        }
+      }
+      // Crash barriers (chevron texture: u along the road in 1.2 m repeats, v up).
+      const u0 = along / 1.2;
+      const u1 = (along + len) / 1.2;
+      for (const s of [-1, 1]) {
+        const inner = s * (half - BARRIER_T);
+        const outer = s * half;
+        for (const [lat, dir] of [
+          [inner, -s],
+          [outer, s],
+        ]) {
+          bars.quad([P(i, lat, yi), P(j, lat, yj), P(j, lat, yj + BARRIER_H), P(i, lat, yi + BARRIER_H)], [nx * dir, 0, nz * dir], "#ffffff", [
+            [u0, 0],
+            [u1, 0],
+            [u1, 1],
+            [u0, 1],
+          ]);
+        }
+        const top: [number, number][] = [
+          [0.02, 0.97],
+          [0.02, 0.97],
+          [0.02, 0.97],
+          [0.02, 0.97],
+        ];
+        bars.quad([P(i, inner, yi + BARRIER_H), P(j, inner, yj + BARRIER_H), P(j, outer, yj + BARRIER_H), P(i, outer, yi + BARRIER_H)], [0, 1, 0], "#ffffff", top);
+      }
+      // Piers under the high spans: a column and a hammerhead cap across the deck.
+      while (nextPier <= along + len) {
+        const t = (nextPier - along) / len;
+        const y = h[i] + (h[j] - h[i]) * t;
+        if (y >= ON_PIERS + 0.5) {
+          const cx = line[i * 2] + (line[j * 2] - line[i * 2]) * t;
+          const cz = line[i * 2 + 1] + (line[j * 2 + 1] - line[i * 2 + 1]) * t;
+          const capTop = y - DECK_DEPTH;
+          deck.box(cx, cz, ux, uz, 0.8, Math.max(1.2, half * 0.85), capTop - 1.1, capTop, CONCRETE);
+          deck.box(cx, cz, ux, uz, 0.75, Math.min(1.4, half * 0.3), 0, capTop - 1.1, CONCRETE);
+        }
+        nextPier += PIER_SPACING;
+      }
+      along += len;
+    }
+  }
+  return { deck: deck.geometry(), barriers: bars.geometry(true) };
 }

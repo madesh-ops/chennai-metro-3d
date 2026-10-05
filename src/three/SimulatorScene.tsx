@@ -15,6 +15,7 @@ import { Track } from "./Track.tsx";
 import { Line5Branch } from "./Line5Branch.tsx";
 import { Flyover } from "./Flyover.tsx";
 import { Stations, type StationSignalState } from "./Stations.tsx";
+import { Footbridges } from "./Footbridges.tsx";
 import { City } from "./City.tsx";
 import { WorldTiles } from "./world/WorldTiles.tsx";
 import { Landmarks } from "./Landmarks.tsx";
@@ -217,6 +218,7 @@ export default function SimulatorScene({ engine, onProgress, onContextLost }: Si
         <Line5Branch />
         <Flyover />
         <Stations signal={signal} />
+        <Footbridges />
         <WorldTiles shadows={shadows && settings.quality === "high"} />
         <City crossStreets={crossStreets} shadows={shadows && settings.quality === "high"} />
         <Landmarks shadows={shadows} />

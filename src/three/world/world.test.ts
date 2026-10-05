@@ -123,3 +123,37 @@ test("keep-out zones remove buildings and trees", () => {
   assert.equal(g.kept.length, 1);
   assert.equal(g.trunks.matrices.length / 16, 1);
 });
+
+test("flyovers: raised runs split from ground pieces, decks face up, piers only on high spans", async () => {
+  const { splitRaised, buildRaised } = await import("./worldGeometry.ts");
+  const line = new Float32Array([0, 0, 100, 0, 200, 0, 300, 0, 400, 0]);
+  const heights = new Float32Array([0, 0, 7.5, 7.5, 0]);
+  const { ground, raised } = splitRaised([{ cls: 0, width: 11, bridge: true, layer: 1, line, heights }]);
+  assert.equal(raised.length, 1);
+  assert.deepEqual(Array.from(raised[0].heights!), [0, 7.5, 7.5, 0]);
+  assert.equal(ground.length, 1);
+  const { deck, barriers } = buildRaised(raised);
+  assert.ok(deck && barriers);
+  // The road surface reaches the deck height; nothing hangs below ground.
+  const pos = deck!.getAttribute("position");
+  let top = -Infinity;
+  let low = Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    top = Math.max(top, pos.getY(i));
+    low = Math.min(low, pos.getY(i));
+  }
+  assert.ok(top > 7.5 && top < 7.7, `top ${top}`);
+  assert.ok(low >= -0.001, `low ${low}`);
+  assert.ok(barriers!.getAttribute("uv"), "barrier chevron uvs");
+});
+
+test("footbridge: walkway at its floor height, tower at the far end", async () => {
+  const { buildFootbridge } = await import("../footbridgeModel.ts");
+  const g = buildFootbridge({ length: 70, width: 4.5, floor: 10.5, supports: [27], tower: { size: 8, height: 14 } });
+  g.floor.computeBoundingBox();
+  assert.ok(Math.abs(g.floor.boundingBox!.max.y - 10.75) < 0.01);
+  g.tower.computeBoundingBox();
+  assert.ok(g.tower.boundingBox!.min.x >= 69 && g.tower.boundingBox!.max.y > 14);
+  g.steel.computeBoundingBox();
+  assert.ok(g.steel.boundingBox!.min.y <= 0.01, "the column reaches the ground");
+});

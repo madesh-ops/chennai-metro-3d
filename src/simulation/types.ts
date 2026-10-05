@@ -117,6 +117,25 @@ export interface RawBranch {
   source: string;
 }
 
+export interface RawFootbridge {
+  id: string;
+  station: string;
+  /** Along the line from the station centre (m, + towards increasing distance). */
+  alongM: number;
+  side: "north" | "south" | "east" | "west";
+  /** From / to, measured out from the track centreline on that side (m). */
+  fromLateralM: number;
+  toLateralM: number;
+  floorM: number;
+  widthM: number;
+  /** Intermediate columns, as lateral distances from the track (m). */
+  supportsAtM: number[];
+  tower: { sizeM: number; heightM: number };
+  status: string;
+  note: string;
+  source: string;
+}
+
 export interface RawRoute {
   id: string;
   line: string;
@@ -208,6 +227,8 @@ export interface RawTracksFile {
     flyovers?: RawFlyover[];
     /** Roads leaving the corridor at junctions. */
     sideRoads?: RawSideRoad[];
+    /** Covered footbridges from a station concourse across the road. */
+    footbridges?: RawFootbridge[];
     platform: {
       type: string;
       lengthM: Tagged<number>;

@@ -7,6 +7,21 @@ import type { KeepOut } from "./worldGeometry.ts";
 export interface KeepOutData {
   circles: number[];
   rects: number[];
+  /** Circles (x, z, r) along flyovers the scene models itself: OSM's copy is not built there. */
+  flyovers?: number[];
+}
+
+/** Is (x, z) on a flyover the scene models itself? */
+export function makeOwnFlyover(data: KeepOutData): (x: number, z: number) => boolean {
+  const f = data.flyovers ?? [];
+  return (x, z) => {
+    for (let k = 0; k < f.length; k += 3) {
+      const dx = x - f[k];
+      const dz = z - f[k + 1];
+      if (dx * dx + dz * dz < f[k + 2] * f[k + 2]) return true;
+    }
+    return false;
+  };
 }
 
 const CELL = 50;
