@@ -38,8 +38,8 @@ export default function AboutPage() {
         <div className="flex max-w-3xl flex-col gap-5">
           <h1 className="text-[32px] font-semibold tracking-[-0.02em] sm:text-[40px]">About Chennai Metro 3D</h1>
           <p className="text-[17px] leading-relaxed text-subtle">
-            An interactive, real-time 3D ride along the first open stretch of Chennai Metro Line 4. Pick two stations and watch a
-            three-car train accelerate, cruise, brake into each platform, open its doors and carry on — from five camera angles, by
+            An interactive, real-time 3D ride on Chennai Metro&apos;s Blue, Green, Yellow and Red lines, on the real track and through the
+            real city (from OpenStreetMap). Pick a line and two stations and watch a three-car train accelerate, cruise, brake into each platform, open its doors and carry on — from five camera angles, by
             day or night, in sun or rain.
           </p>
           <p className="text-[15px] leading-relaxed text-muted">

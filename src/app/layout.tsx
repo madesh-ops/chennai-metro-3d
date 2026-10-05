@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     template: "%s · Chennai Metro 3D",
   },
   description:
-    "Ride Chennai Metro Line 4 from Poonamallee Bypass to Vadapalani in an interactive real-time 3D simulation. Built on open data, no paid APIs.",
+    "Ride Chennai Metro's Blue, Green, Yellow and Red lines in an interactive real-time 3D simulation, on the real track through the real city. Built on open data, no paid APIs.",
   applicationName: "Chennai Metro 3D",
 };
 

@@ -7,33 +7,38 @@ import { StationBadges, QUALITY_LABEL } from "../../../components/station/Statio
 import { StationMap } from "../../../components/station/StationMap";
 import { buttonClass } from "../../../components/ui/Button";
 import { ArrowRight, ChevronLeft } from "../../../components/ui/Icons";
-import { getRouteSummary } from "../../../lib/getRouteSummary";
+import { getAllRouteSummaries, routeForStation } from "../../../lib/getRouteSummary";
+import { simulatorHref } from "../../../lib/routeSummary";
+import { lineInfo, statusChip } from "../../../lib/lines";
 import { dataBundle } from "../../../simulation/data";
 
 export function generateStaticParams() {
-  return getRouteSummary().stations.map((s) => ({ id: s.id }));
+  const ids = new Set(getAllRouteSummaries().flatMap((r) => r.stations.map((s) => s.id)));
+  return [...ids].map((id) => ({ id }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const st = getRouteSummary().stations.find((s) => s.id === id);
-  if (!st) return { title: "Station not found" };
+  const r = routeForStation(id);
+  const st = r?.stations.find((s) => s.id === id);
+  if (!r || !st) return { title: "Station not found" };
+  const lines = [r.lineId, ...st.interchange].map((l) => `${lineInfo(l).name} (${lineInfo(l).colourName})`).join(" and ");
   return {
     title: `${st.name} station`,
-    description: `${st.name}${st.nameTa ? ` (${st.nameTa})` : ""} on Chennai Metro Line 4 — ${st.service === "stop" ? "served" : "not yet open"}, ${st.km.toFixed(2)} km from Poonamallee Bypass.`,
+    description: `${st.name}${st.nameTa ? ` (${st.nameTa})` : ""} on Chennai Metro ${lines}, ${st.km.toFixed(2)} km from ${r.stations[0].name}.`,
   };
 }
 
 export default async function StationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const s = getRouteSummary();
+  const s = routeForStation(id);
+  if (!s) notFound();
   const idx = s.stations.findIndex((x) => x.id === id);
-  if (idx < 0) notFound();
+  // Every route through this station, for its ride links.
+  const through = getAllRouteSummaries().filter((r) => r.stations.some((x) => x.id === id && x.service === "stop"));
   const st = s.stations[idx];
   const prevServed = [...s.stations.slice(0, idx)].reverse().find((x) => x.service === "stop");
   const nextServed = s.stations.slice(idx + 1).find((x) => x.service === "stop");
-  const first = s.stopIds[0];
-  const last = s.stopIds[s.stopIds.length - 1];
   const landmarks = dataBundle.landmarks.landmarks.filter((l) => l.nearStation === st.id);
   const sourceName = dataBundle.stations.stations.find((x) => x.id === st.id)?.coordinates?.source;
   const sourceText = sourceName ? dataBundle.stations.meta.sources[sourceName] : null;
@@ -50,7 +55,7 @@ export default async function StationPage({ params }: { params: Promise<{ id: st
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2 font-mono text-[12px] tracking-[0.08em] text-muted">
                 <span className="h-1 w-3.5 rounded-sm" style={{ background: s.lineColour }} aria-hidden="true" />
-                {s.lineName.toUpperCase()} · {st.km.toFixed(2)} KM FROM POONAMALLEE BYPASS
+                {s.lineName.toUpperCase()} · {st.km.toFixed(2)} KM FROM {s.stations[0].name.toUpperCase()}
               </div>
               <h1 className="text-[36px] font-semibold uppercase leading-none tracking-[0.03em] sm:text-[48px]">{st.name}</h1>
               {st.nameTa && (
@@ -62,17 +67,31 @@ export default async function StationPage({ params }: { params: Promise<{ id: st
             </div>
 
             {st.service === "stop" ? (
-              <div className="flex flex-wrap gap-3">
-                {st.id !== last && (
-                  <Link href={`/simulator?from=${st.id}&to=${last}`} className={buttonClass("primary", "md")}>
-                    Ride to {s.stations.find((x) => x.id === last)?.name} <ArrowRight size={16} />
-                  </Link>
-                )}
-                {st.id !== first && (
-                  <Link href={`/simulator?from=${st.id}&to=${first}`} className={buttonClass("secondary", "md")}>
-                    Ride to {s.stations.find((x) => x.id === first)?.name}
-                  </Link>
-                )}
+              <div className="flex flex-col gap-3">
+                {through.map((r) => {
+                  const a = r.stopIds[0];
+                  const b = r.stopIds[r.stopIds.length - 1];
+                  const nm = (x: string) => r.stations.find((y) => y.id === x)?.name;
+                  return (
+                    <div key={r.id} className="flex flex-wrap items-center gap-3">
+                      <span className="flex w-full items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-muted">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: r.lineColour }} aria-hidden="true" />
+                        {r.lineName.toUpperCase()}
+                        {r.preview ? ` · ${statusChip(r.status).toUpperCase()}` : ""}
+                      </span>
+                      {st.id !== b && (
+                        <Link href={simulatorHref(r.id, st.id, b)} className={buttonClass(r.id === s.id ? "primary" : "secondary", "md")}>
+                          Ride to {nm(b)} <ArrowRight size={16} />
+                        </Link>
+                      )}
+                      {st.id !== a && (
+                        <Link href={simulatorHref(r.id, st.id, a)} className={buttonClass("secondary", "md")}>
+                          Ride to {nm(a)}
+                        </Link>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="rounded-xl border border-line bg-surface px-4 py-3 text-[14px] leading-relaxed text-subtle">
@@ -84,7 +103,15 @@ export default async function StationPage({ params }: { params: Promise<{ id: st
             )}
 
             <dl className="divide-y divide-line rounded-2xl border border-line">
-              <Fact label="Status">{st.service === "stop" ? "Served from opening (scheduled 11 Oct 2026)" : "Built, not yet open"}</Fact>
+              <Fact label="Lines">
+                {[s.lineId, ...st.interchange].map((l) => (
+                  <span key={l} className="mr-4 inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: lineInfo(l).colour }} aria-hidden="true" />
+                    {lineInfo(l).name} · {lineInfo(l).colourName}
+                  </span>
+                ))}
+              </Fact>
+              <Fact label="Status">{st.service === "pass" ? "Built, not yet open" : s.preview ? `${s.statusLabel} (preview ride)` : s.statusLabel}</Fact>
               {st.altNames.length > 0 && <Fact label="Also known as">{st.altNames.join(", ")}</Fact>}
               <Fact label="Previous / next served">
                 {prevServed ? prevServed.name : "—"} · {nextServed ? nextServed.name : "—"}

@@ -1,8 +1,8 @@
-import stations from "../data/stations.json";
-import routes from "../data/routes.json";
-import tracks from "../data/tracks.json";
-import landmarks from "../data/landmarks.json";
-import network from "../data/network.json";
+import stations from "../data/stations.json" with { type: "json" };
+import routes from "../data/routes.json" with { type: "json" };
+import tracks from "../data/tracks.json" with { type: "json" };
+import landmarks from "../data/landmarks.json" with { type: "json" };
+import network from "../data/network.json" with { type: "json" };
 import { buildRouteModel, type RouteModel } from "./RouteController.ts";
 import type { DataBundle } from "./types.ts";
 

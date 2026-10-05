@@ -10,6 +10,7 @@ export interface StationSummary {
   altNames: string[];
   service: "stop" | "pass";
   terminus: boolean;
+  /** Other lines (ids) at this station. */
   interchange: string[];
   doubleDecker: boolean;
   km: number;
@@ -21,6 +22,11 @@ export interface StationSummary {
 
 export interface RouteSummary {
   id: string;
+  lineId: string;
+  /** routes.json status: "open", "cmrs-approved", "under-construction"… */
+  status: string;
+  /** Under construction: ridden as a preview, every station a stop. */
+  preview: boolean;
   title: string;
   corridor: string;
   lineName: string;
@@ -92,4 +98,40 @@ export function stationsBetween(s: RouteSummary, fromId: string, toId: string) {
   if (ia < 0 || ib < 0) return [];
   const slice = s.stations.slice(Math.min(ia, ib), Math.max(ia, ib) + 1);
   return ia <= ib ? slice : slice.reverse();
+}
+
+/** Every line on one map, in the shared city projection (metres, +x east, +z south). */
+export interface NetworkSummary {
+  lines: {
+    id: string;
+    name: string;
+    colourName: string;
+    colour: string;
+    lengthKm: number;
+    routeIds: string[];
+    /** Any of its routes in passenger service. */
+    open: boolean;
+    track: [number, number][];
+  }[];
+  stations: {
+    id: string;
+    name: string;
+    nameTa: string | null;
+    x: number;
+    z: number;
+    lines: string[];
+    routes: string[];
+    /** Served by an open route. */
+    open: boolean;
+    /** First or last station of a route. */
+    end: boolean;
+  }[];
+}
+
+/** Simulator link for a journey on a route. */
+export function simulatorHref(routeId: string, from?: string, to?: string): string {
+  const q = new URLSearchParams({ route: routeId });
+  if (from) q.set("from", from);
+  if (to) q.set("to", to);
+  return `/simulator?${q.toString()}`;
 }

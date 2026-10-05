@@ -22,6 +22,8 @@ export interface RouteMapProps {
 const W = 1000;
 const H = 560;
 const PAD_X = 70;
+const PAD_Y = 70;
+/** Most vertical stretch applied to a mainly east–west line so its labels fit. */
 const EXAGGERATION = 1.7;
 
 /**
@@ -47,14 +49,21 @@ export function RouteMap({
     const maxLon = Math.max(...lons);
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
-    const kx = (W - PAD_X * 2) / (maxLon - minLon);
-    // Equirectangular with cos(lat) correction, then exaggerate vertically.
-    const ky = kx * (1 / Math.cos((((minLat + maxLat) / 2) * Math.PI) / 180)) * EXAGGERATION;
     const midLat = (minLat + maxLat) / 2;
+    const midLon = (minLon + maxLon) / 2;
+    // Equirectangular (cos(lat) on longitude), fitted to the box both ways; a flat
+    // east–west line is stretched vertically up to EXAGGERATION so labels fit.
+    const cos = Math.cos((midLat * Math.PI) / 180);
+    const spanX = Math.max(1e-6, (maxLon - minLon) * cos);
+    const spanY = Math.max(1e-6, maxLat - minLat);
+    const boxW = W - PAD_X * 2;
+    const boxH = H - PAD_Y * 2;
+    const ex = Math.min(EXAGGERATION, Math.max(1, (boxH / boxW) * (spanX / spanY)));
+    const k = Math.min(boxW / spanX, boxH / (spanY * ex));
     const pts = summary.stations.map((s) => ({
       ...s,
-      x: PAD_X + (s.lon - minLon) * kx,
-      y: H / 2 + 20 - (s.lat - midLat) * ky,
+      x: W / 2 + (s.lon - midLon) * cos * k,
+      y: H / 2 + 10 - (s.lat - midLat) * k * ex,
     }));
     return pts;
   }, [summary]);
@@ -105,6 +114,10 @@ export function RouteMap({
         const labelY = p.y + (below ? 18 : -14);
         const angle = below ? 38 : -38;
         const endLabel = isFrom || isTo;
+        // FROM / TO labels sit beyond the journey's end, away from the other end
+        // (east–west: the later station's label above, as before).
+        const other = layout[isFrom ? ib : ia];
+        const above = !other || Math.abs(other.y - p.y) < 60 ? i > (isFrom ? ib : ia) : p.y < other.y;
         const content = (
           <>
             {(isFrom || isTo || isHi) && (
@@ -132,12 +145,12 @@ export function RouteMap({
             )}
             {endLabel && (
               <>
-                <text x={p.x} y={i === layout.length - 1 ? p.y - 44 : p.y + 40} textAnchor="middle" fill="#f5f7fa" fontSize={16} fontWeight={600}>
+                <text x={p.x} y={above ? p.y - 44 : p.y + 40} textAnchor="middle" fill="#f5f7fa" fontSize={16} fontWeight={600}>
                   {p.name}
                 </text>
                 <text
                   x={p.x}
-                  y={i === layout.length - 1 ? p.y - 26 : p.y + 58}
+                  y={above ? p.y - 26 : p.y + 58}
                   textAnchor="middle"
                   fill={isFrom ? "#6fa8ff" : "#8b96a7"}
                   fontSize={11}

@@ -22,7 +22,7 @@ const MESSAGES: Record<FallbackReason, string> = {
 };
 
 export function FallbackView({ engine, snap, reason }: { engine: SimulationEngine; snap: SimulationState; reason: FallbackReason }) {
-  const summary = useMemo(() => getRouteSummary(), []);
+  const summary = useMemo(() => getRouteSummary(engine.route.id), [engine.route.id]);
   const fromKm = engine.journey.from.km;
   const trainKm = fromKm + engine.journey.direction * (snap.distanceTravelled / 1000);
   return (

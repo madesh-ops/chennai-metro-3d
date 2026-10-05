@@ -1,3 +1,4 @@
+import { lineInfo } from "../../lib/lines";
 import type { StationSummary } from "../../lib/routeSummary";
 
 const QUALITY_LABEL: Record<string, string> = {
@@ -23,7 +24,15 @@ export function StationBadges({ s, showQuality = true }: { s: StationSummary; sh
     <div className="flex flex-wrap gap-1.5">
       {s.service === "pass" && <Badge tone="warn">Not yet open</Badge>}
       {s.terminus && <Badge tone="route">Terminus</Badge>}
-      {s.interchange.includes("line-2") && <Badge tone="accent">Green Line interchange</Badge>}
+      {s.interchange.map((id) => {
+        const l = lineInfo(id);
+        return (
+          <span key={id} className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line-strong px-2.5 text-[11.5px] font-medium text-subtle">
+            <span className="h-2 w-2 rounded-full" style={{ background: l.colour }} aria-hidden="true" />
+            Change for {l.name} ({l.colourName})
+          </span>
+        );
+      })}
       {s.doubleDecker && <Badge>Double-decker</Badge>}
       {showQuality && <Badge>{QUALITY_LABEL[s.coordinateQuality] ?? s.coordinateQuality}</Badge>}
     </div>

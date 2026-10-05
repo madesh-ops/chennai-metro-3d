@@ -6,7 +6,7 @@ import { getRouteSummary } from "../../lib/getRouteSummary";
 
 export const metadata: Metadata = {
   title: "Simulator",
-  description: "Ride Chennai Metro Line 4 in real-time 3D: cinematic, driver, passenger, map and free cameras.",
+  description: "Ride any Chennai Metro line in real-time 3D: cinematic, driver, passenger, map and free cameras.",
 };
 
 export default function SimulatorPage() {

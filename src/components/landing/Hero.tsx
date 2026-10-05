@@ -12,11 +12,10 @@ import { SceneErrorBoundary } from "../simulator/SceneErrorBoundary";
 const HeroScene = dynamic(() => import("../../three/HeroScene"), { ssr: false });
 
 export interface HeroFacts {
+  lines: { name: string; colour: string }[];
   lengthKm: number;
-  servedStations: number;
-  openingLabel: string;
-  title: string;
-  lineColour: string;
+  stations: number;
+  openLines: number;
 }
 
 export function Hero({ facts }: { facts: HeroFacts }) {
@@ -63,8 +62,12 @@ export function Hero({ facts }: { facts: HeroFacts }) {
 
       <div id="main" className="absolute inset-x-4 bottom-[120px] flex max-w-[560px] flex-col gap-6 sm:inset-x-8 lg:left-12 lg:bottom-[132px]">
         <div className="flex items-center gap-2.5 font-mono text-[12px] tracking-[0.08em] text-muted animate-fade-in">
-          <span className="h-1 w-[18px] rounded-sm" style={{ background: facts.lineColour }} aria-hidden="true" />
-          <span>LINE 4 · {facts.title.toUpperCase()}</span>
+          <span className="flex gap-1" aria-hidden="true">
+            {facts.lines.map((l) => (
+              <span key={l.name} className="h-1 w-[14px] rounded-sm" style={{ background: l.colour }} />
+            ))}
+          </span>
+          <span>{facts.lines.length} LINES · REAL TRACK, REAL CITY</span>
         </div>
         <div className="flex flex-col gap-3.5 animate-rise-in">
           <p className="text-[13px] font-semibold tracking-[0.16em] text-muted">CHENNAI METRO 3D</p>
@@ -72,7 +75,7 @@ export function Hero({ facts }: { facts: HeroFacts }) {
             Explore the journey.
           </h1>
           <p className="max-w-[420px] text-[17px] leading-relaxed text-[#aeb8c5] sm:text-[18px]">
-            Experience Chennai Metro from a completely new perspective.
+            Ride the Blue, Green, Yellow and Red lines in real-time 3D, on the real track through the real streets of Chennai.
           </p>
         </div>
         <div className="flex flex-wrap gap-3 animate-rise-in [animation-delay:120ms]">
@@ -89,18 +92,18 @@ export function Hero({ facts }: { facts: HeroFacts }) {
         <dl className="flex flex-wrap gap-x-7 gap-y-1">
           <div className="flex gap-1.5">
             <dt className="sr-only">Length</dt>
-            <dd><span className="text-ink">{facts.lengthKm.toFixed(2)}</span> km</dd>
+            <dd><span className="text-ink">{facts.lengthKm.toFixed(0)}</span> km of line</dd>
           </div>
           <div className="flex gap-1.5">
-            <dt className="sr-only">Stations served</dt>
-            <dd><span className="text-ink">{facts.servedStations}</span> stations served</dd>
+            <dt className="sr-only">Stations</dt>
+            <dd><span className="text-ink">{facts.stations}</span> stations</dd>
           </div>
           <div className="flex gap-1.5">
             <dt className="sr-only">Status</dt>
-            <dd>{facts.openingLabel}</dd>
+            <dd><span className="text-ink">{facts.openLines}</span> running or opening · {facts.lines.length - facts.openLines} under construction</dd>
           </div>
         </dl>
-        <span className="hidden sm:inline">{webgl === "unsupported" ? "3D preview unavailable on this device" : "Real-time 3D · procedural city"}</span>
+        <span className="hidden sm:inline">{webgl === "unsupported" ? "3D preview unavailable on this device" : "Real-time 3D · city from OpenStreetMap"}</span>
       </div>
     </section>
   );

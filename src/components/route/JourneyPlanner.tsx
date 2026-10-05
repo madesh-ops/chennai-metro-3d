@@ -6,17 +6,60 @@ import { useId, useMemo, useState } from "react";
 import { RouteMap } from "./RouteMap";
 import { ArrowRight, ChevronDown, Swap } from "../ui/Icons";
 import { buttonClass } from "../ui/Button";
-import { journeyDistanceKm, journeyDuration, stationsBetween, type RouteSummary } from "../../lib/routeSummary";
+import { journeyDistanceKm, journeyDuration, simulatorHref, stationsBetween, type RouteSummary } from "../../lib/routeSummary";
+import { statusChip } from "../../lib/lines";
 
 type Field = "from" | "to";
 
-export function JourneyPlanner({ summary }: { summary: RouteSummary }) {
+export function JourneyPlanner({ summaries }: { summaries: RouteSummary[] }) {
   const params = useSearchParams();
+  const initial = summaries.find((r) => r.id === params.get("route")) ?? summaries[0];
+  const [routeId, setRouteId] = useState(initial.id);
+  const summary = summaries.find((r) => r.id === routeId) ?? summaries[0];
+  return (
+    <div className="flex flex-1 flex-col gap-5">
+      <LinePicker summaries={summaries} value={summary.id} onChange={setRouteId} />
+      {/* Keyed by route so the stations reset when the line changes. */}
+      <Planner key={summary.id} summary={summary} initialFrom={summary === initial ? params.get("from") : null} initialTo={summary === initial ? params.get("to") : null} />
+    </div>
+  );
+}
+
+function LinePicker({ summaries, value, onChange }: { summaries: RouteSummary[]; value: string; onChange: (id: string) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Line" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+      {summaries.map((r) => {
+        const on = r.id === value;
+        return (
+          <button
+            key={r.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(r.id)}
+            className={`flex flex-col gap-1.5 rounded-xl border px-4 py-3 text-left transition-colors ${on ? "border-accent bg-surface" : "border-line bg-surface/40 hover:bg-surface"}`}
+          >
+            <span className="flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-muted">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: r.lineColour }} aria-hidden="true" />
+              {r.lineName.toUpperCase()} · {r.lineColourName.toUpperCase()}
+              <span className={`ml-auto rounded-full border px-1.5 py-px text-[10px] ${r.preview ? "border-[#e8742a]/40 text-[#f0a46c]" : "border-line-strong text-subtle"}`}>
+                {statusChip(r.status).toUpperCase()}
+              </span>
+            </span>
+            <span className="text-[14px] font-medium leading-snug text-ink">{r.title}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Planner({ summary, initialFrom, initialTo }: { summary: RouteSummary; initialFrom: string | null; initialTo: string | null }) {
   const router = useRouter();
   const stops = summary.stations.filter((s) => s.service === "stop");
   const valid = (id: string | null) => (id && stops.some((s) => s.id === id) ? id : null);
-  const [from, setFrom] = useState<string>(valid(params.get("from")) ?? stops[0].id);
-  const [to, setTo] = useState<string>(valid(params.get("to")) ?? stops[stops.length - 1].id);
+  const [from, setFrom] = useState<string>(valid(initialFrom) ?? stops[0].id);
+  const [to, setTo] = useState<string>(valid(initialTo) ?? stops[stops.length - 1].id);
   const [active, setActive] = useState<Field>("from");
   const [announce, setAnnounce] = useState("");
   const fromId = useId();
@@ -54,7 +97,7 @@ export function JourneyPlanner({ summary }: { summary: RouteSummary }) {
     setAnnounce(`Swapped. From ${nameOf(to)} to ${nameOf(from)}.`);
   };
 
-  const href = `/simulator?from=${from}&to=${to}`;
+  const href = simulatorHref(summary.id, from, to);
 
   return (
     <div className="flex flex-1 flex-col gap-6 lg:flex-row lg:gap-8">
@@ -119,9 +162,14 @@ export function JourneyPlanner({ summary }: { summary: RouteSummary }) {
               they open.
             </p>
           )}
+          {summary.preview && (
+            <p className="text-[#f0a46c]">
+              {summary.statusLabel}. This is a preview ride on the real track: every station is a stop, timings are illustrative.
+            </p>
+          )}
           <p>
-            Journey time is simulated from the published train specification. CMRL quotes about{" "}
-            {summary.reportedJourneyMinutes} minutes end to end.
+            Journey time is simulated from the published train specification
+            {summary.reportedJourneyMinutes ? `. CMRL quotes about ${summary.reportedJourneyMinutes} minutes end to end.` : "."}
           </p>
         </div>
 
@@ -160,7 +208,7 @@ export function JourneyPlanner({ summary }: { summary: RouteSummary }) {
         </div>
         <RouteMap summary={summary} from={from} to={to} onSelect={pick} className="absolute inset-x-2 bottom-10 top-14 h-[calc(100%-6rem)] w-[calc(100%-1rem)]" />
         <p className="absolute bottom-4 left-6 right-6 font-mono text-[11px] text-faint">
-          Drawn from published station coordinates · vertical scale exaggerated · unopened station positions indicative
+          Drawn from station coordinates (OpenStreetMap) · vertical scale exaggerated
         </p>
         <p className="sr-only" aria-live="polite">
           {announce}

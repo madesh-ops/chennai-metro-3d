@@ -156,7 +156,13 @@ function Simulator({ engine }: { engine: SimulationEngine }) {
   const journeyTitle = `${engine.journey.from.name} → ${engine.journey.to.name}`;
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-bg text-ink" data-loaded={loaded} data-mode={use3d ? "3d" : "2d"}>
+    <div
+      className="fixed inset-0 overflow-hidden bg-bg text-ink"
+      data-loaded={loaded}
+      data-mode={use3d ? "3d" : "2d"}
+      // HUD accents in this line's colour.
+      style={{ ["--color-route" as string]: engine.route.line.colour }}
+    >
       <h1 className="sr-only">
         Simulator: {journeyTitle}
       </h1>

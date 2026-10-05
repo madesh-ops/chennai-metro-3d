@@ -1,9 +1,11 @@
 # Chennai Metro 3D
 
-**Explore the journey.** An interactive, real-time 3D ride along the first open stretch of Chennai Metro Line 4 (Yellow Line):
-Poonamallee Bypass → Vadapalani, 14.64 km, 11 served stations.
+**Explore the journey.** An interactive, real-time 3D ride on Chennai Metro's Blue (Line 1), Green (Line 2), Yellow (Line 4)
+and Red (Line 5) lines, on the real track (OpenStreetMap) through the real city. Five routes: Wimco Nagar Depot → Airport,
+Central → St. Thomas Mount, Poonamallee Bypass → Vadapalani (opening), and previews of Vadapalani → Lighthouse and
+Madhavaram → Sholinganallur (under construction).
 
-Pick any two served stations, then watch a three-car train depart, accelerate, cruise, brake into each platform, open its doors and carry on.
+Pick a line and any two stations, then watch a three-car train depart, accelerate, cruise, brake into each platform, open its doors and carry on.
 You can watch from five cameras, by day or night, in sun or rain.
 
 - **₹0 to run.** No API keys and no paid services. Everything runs client-side from local JSON data, with procedural textures and the browser's own speech synthesis.
@@ -51,11 +53,11 @@ If loading takes longer than 12 seconds, the page says so, explains the likely c
 
 | Route | Purpose |
 | --- | --- |
-| `/` | Landing page with a live 3D dusk scene of the real alignment (Thelliyaragaram → Porur Junction) |
-| `/routes` | Journey planner: From/To selects, a clickable route map, distance and simulated journey time |
-| `/simulator?from=…&to=…` | The 3D simulator |
-| `/explore` | Line overview: sections, speed limits, the Arcot Road double-decker, trains, service |
-| `/stations`, `/stations/[id]` | Every station in English and Tamil, with position, status, sources and context |
+| `/` | Landing page with a live 3D dusk scene (Line 4, Thelliyaragaram → Porur Junction), every route and a network map |
+| `/routes?route=…` | Journey planner: line picker, From/To selects, a clickable route map, distance and simulated journey time |
+| `/simulator?route=…&from=…&to=…` | The 3D simulator (no `route`: the original Line 4 route) |
+| `/explore` | Network map and every route: status, fares, interchanges, speed limits, the Arcot Road double-decker, trains |
+| `/stations`, `/stations/[id]` | Every station on every line in English and Tamil, with interchanges, ride links, position, sources and context |
 | `/about` | What is verified, reported, assumed or approximated, plus sources and licences |
 
 ### Simulator
