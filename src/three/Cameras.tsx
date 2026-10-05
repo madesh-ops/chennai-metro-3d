@@ -236,7 +236,9 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
     const dt = Math.min(delta, 0.1);
     s.time += dt;
     const mode: CameraMode = hero ? "cinematic" : useViewStore.getState().cameraMode;
-    const rail = route.params.railLevel;
+    // Rail height under the train (the track climbs onto viaducts and dips into tunnels).
+    const railAt = (d: number) => route.profile.railAt(d);
+    const rail = railAt(pose.centerDistance);
     const C = pose.center;
     const f = tmp.f.copy(pose.forward);
     const r = tmp.r.set(-f.z, 0, f.x);
@@ -347,7 +349,7 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
           const d = pose.centerDistance + pose.direction * 170;
           const side = Math.sin(s.time) > 0 ? 1 : -1;
           route.alignment.offsetPoint(d, side * 17, tmp.pt);
-          s.flybyPoint.set(tmp.pt.x, 2.0, tmp.pt.z);
+          s.flybyPoint.set(tmp.pt.x, Math.max(2.0, railAt(d) > 8 ? 2.0 : railAt(d) + 3), tmp.pt.z);
         }
         if (wanted === "platform" && arrival) {
           const stopD = platformStop;
@@ -355,7 +357,7 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
           if (stopD !== null) {
             const lateral = Math.sign(pose.lateral || -1) * (route.params.trackCentres / 2 + 3.4);
             route.alignment.offsetPoint(stopD + pose.direction * (route.params.platformLength / 2 - 7), lateral, tmp.pt);
-            s.platformPoint.set(tmp.pt.x, rail + route.params.platformHeight + 1.65, tmp.pt.z);
+            s.platformPoint.set(tmp.pt.x, railAt(stopD) + route.params.platformHeight + 1.65, tmp.pt.z);
           }
         }
         if (wanted === "dwell") s.orbitBase = s.time;
@@ -405,19 +407,25 @@ export function CameraRig({ reducedMotion, cameraShake, getArrival, hero = false
           break;
         }
       }
+      // Underground the outside shots would be inside the earth: ride in the tunnel instead,
+      // between the tracks behind the train, under the roof.
+      if (!hero && rail < -4 && s.shot !== "platform") {
+        route.alignment.offsetPoint(pose.centerDistance - pose.direction * 30, -pose.lateral * 0.4, tmp.pt);
+        tmp.pos.set(tmp.pt.x, railAt(pose.centerDistance - pose.direction * 30) + 3.4, tmp.pt.z);
+        route.alignment.offsetPoint(pose.centerDistance + pose.direction * 20, pose.lateral, tmp.pt);
+        tmp.look.set(tmp.pt.x, railAt(pose.centerDistance + pose.direction * 20) + 1.6, tmp.pt.z);
+        desiredFov = 54;
+      }
       lookFrom(tmp.pos, tmp.look);
     } else if (mode === "driver") {
       const car = pose.cars[0];
       const cf = tmp.cf.set(Math.cos(car.yaw), 0, -Math.sin(car.yaw));
       const cr = tmp.cr.set(-cf.z, 0, cf.x);
-      tmp.pos
-        .copy(car.position)
-        .addScaledVector(cf, DRIVER_EYE.x)
-        .addScaledVector(cr, DRIVER_EYE.z)
-        .add(tmp.lift.set(0, DRIVER_EYE.y, 0));
+      // The eye rides with the cab, including its pitch on ramps (car-local: +x forward, +z right).
+      tmp.pos.copy(tmp.lift.set(DRIVER_EYE.x, DRIVER_EYE.y, DRIVER_EYE.z).applyQuaternion(car.quaternion)).add(car.position);
       const headD = pose.centerDistance + pose.direction * (TRAIN.pitch + TRAIN.carLength / 2);
       route.alignment.offsetPoint(headD + pose.direction * 95, pose.lateral, tmp.pt);
-      tmp.look.set(tmp.pt.x, rail + 2.0, tmp.pt.z);
+      tmp.look.set(tmp.pt.x, railAt(headD + pose.direction * 95) + 2.0, tmp.pt.z);
       if (cameraShake && !reducedMotion) {
         const k = Math.min(1, pose.speed / 20);
         tmp.pos.y += Math.sin(s.time * 19) * 0.006 * k + Math.sin(s.time * 7.3) * 0.004 * k;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AdditiveBlending,
   BoxGeometry,
@@ -20,7 +20,8 @@ import {
   type Texture,
 } from "three";
 import { useScene } from "./SceneContext.tsx";
-import { buildSignBoards, buildStation, type StationDims, type StationGeometry } from "./stationModel.ts";
+import { buildSignBoards, buildStation, buildStationEntrances, buildUndergroundSignBoards, buildUndergroundStation, type StationDims, type StationGeometry } from "./stationModel.ts";
+import { TUNNEL_ORDER } from "./Track.tsx";
 import { ensureFontsLoaded, makeConcreteTexture, makeRadialTexture, makeStationSignTexture } from "./textures.ts";
 import { composeMatrix } from "../utils/geometry.ts";
 import { mulberry32, range as rr } from "../utils/random.ts";
@@ -47,10 +48,13 @@ function VariantMeshes({
   geo,
   stations,
   mats,
+  renderOrder = 0,
 }: {
   geo: StationGeometry;
   stations: StationModel[];
   mats: Record<string, Material>;
+  /** Underground halls draw before the ground (TUNNEL_ORDER). */
+  renderOrder?: number;
 }) {
   const { route } = useScene();
   const meshes = useMemo(() => {
@@ -66,6 +70,7 @@ function VariantMeshes({
       }
       mesh.castShadow = cast;
       mesh.receiveShadow = true;
+      mesh.renderOrder = renderOrder;
       mesh.computeBoundingSphere();
       return mesh;
     };
@@ -79,7 +84,7 @@ function VariantMeshes({
       make(geo.facade, mats.facade),
       make(geo.lights, mats.lights, false, true),
     ];
-  }, [geo, stations, mats, route.alignment]);
+  }, [geo, stations, mats, route.alignment, renderOrder]);
   return (
     <>
       {meshes.map((m, i) => (
@@ -138,9 +143,26 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     () => new Set(inRange.filter((s) => route.flyovers.some((f) => s.distance > f.corridorFrom && s.distance < f.corridorTo)).map((s) => s.id)),
     [inRange, route.flyovers],
   );
-  const single = useMemo(() => inRange.filter((s) => !s.doubleDecker && !overFlyover.has(s.id)), [inRange, overFlyover]);
-  const double = useMemo(() => inRange.filter((s) => s.doubleDecker), [inRange]);
-  const flyover = useMemo(() => inRange.filter((s) => !s.doubleDecker && overFlyover.has(s.id)), [inRange, overFlyover]);
+  // Rail height at each station (level platforms; underground ones are below ground).
+  const railOf = useCallback((s: StationModel) => route.profile.railAt(s.distance), [route.profile]);
+  const elevated = useMemo(() => inRange.filter((s) => railOf(s) >= 0), [inRange, railOf]);
+  const single = useMemo(() => elevated.filter((s) => !s.doubleDecker && !overFlyover.has(s.id)), [elevated, overFlyover]);
+  const double = useMemo(() => elevated.filter((s) => s.doubleDecker), [elevated]);
+  const flyover = useMemo(() => elevated.filter((s) => !s.doubleDecker && overFlyover.has(s.id)), [elevated, overFlyover]);
+  // Underground stations grouped by depth: one geometry per rail height.
+  const underground = useMemo(() => {
+    const groups = new Map<number, StationModel[]>();
+    for (const s of inRange) {
+      const y = Math.round(railOf(s) * 2) / 2;
+      if (y >= 0) continue;
+      if (!groups.has(y)) groups.set(y, []);
+      groups.get(y)!.push(s);
+    }
+    return [...groups.entries()].map(([rail, stations]) => {
+      const ud = { ...dims, rail };
+      return { rail, stations, hall: buildUndergroundStation(ud), entrances: buildStationEntrances(ud), boards: buildUndergroundSignBoards(ud) };
+    });
+  }, [inRange, railOf, dims]);
 
   const geos = useMemo(
     () => ({
@@ -196,6 +218,25 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
       lights: new MeshBasicMaterial({ color: "#ffffff", toneMapped: false }),
     };
   }, [line.colour]);
+  // Underground halls are lit by their own lamps: the same materials with a soft glow.
+  const ugMats = useMemo<Record<string, Material>>(() => {
+    const glow = (m: Material, c: string, k: number) => {
+      const g = (m as MeshStandardMaterial).clone();
+      g.emissive = new Color(c);
+      g.emissiveIntensity = k;
+      return g;
+    };
+    return {
+      ...mats,
+      concrete: glow(mats.concrete, "#b9b6ae", 0.45),
+      platformTop: glow(mats.platformTop, "#c9cbcd", 0.4),
+      roof: glow(mats.roof, "#e9ecef", 0.55),
+      facade: glow(mats.facade, "#4c5966", 0.3),
+      steel: glow(mats.steel, "#8e969e", 0.3),
+    };
+  }, [mats]);
+  // Street entrances: light concrete kiosks with glass fronts.
+  const entranceMats = useMemo<Record<string, Material>>(() => ({ ...mats, facade: mats.concrete }), [mats]);
 
   // Night: platform light pools and lit concourse glazing.
   const pools = useMemo(() => {
@@ -216,8 +257,8 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     const m = new Matrix4();
     const p = { x: 0, z: 0 };
     let i = 0;
-    const y = params.railLevel + params.platformHeight + 0.03;
     for (const st of served) {
+      const y = route.profile.railAt(st.distance) + params.platformHeight + 0.03;
       const yaw = alignment.heading(st.distance);
       for (const s of [-1, 1]) {
         for (let k = 0; k < perPlatform; k++) {
@@ -230,7 +271,7 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     }
     mesh.computeBoundingSphere();
     return mesh;
-  }, [inRange, alignment, params]);
+  }, [inRange, alignment, params, route.profile]);
 
   // Crowd level (setting, or the local clock's peaks): quantised so the clock rarely rebuilds.
   const crowd = useViewStore((st) => st.settings.crowd);
@@ -244,7 +285,7 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     const closed = inRange.filter((s) => s.service === "pass");
     const p = { x: 0, z: 0 };
     const m = new Matrix4();
-    const y = params.railLevel + params.platformHeight;
+    const yAt = (st: StationModel) => route.profile.railAt(st.distance) + params.platformHeight;
     // Midday "auto" (0.5) keeps the old counts; "packed" doubles them.
     const base = quality === "low" ? 0 : quality === "medium" ? 7 : 12;
     const peopleCount = base ? Math.max(1, Math.round(base * 2 * crowdLevel)) : 0;
@@ -264,7 +305,7 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
             const v = Math.floor(rng() * CROWD_VARIANTS.length);
             const h = rr(rng, 0.93, 1.06) * (CROWD_VARIANTS[v].outfit === "saree" || CROWD_VARIANTS[v].outfit === "kurta" ? 0.95 : 1);
             const matrix = new Matrix4();
-            composeMatrix(matrix, p.x, y, p.z, yaw, h, h, h);
+            composeMatrix(matrix, p.x, yAt(st), p.z, yaw, h, h, h);
             groups[v].push({ matrix, colours: pickColours(CROWD_VARIANTS[v].outfit, rng) });
           }
         }
@@ -287,7 +328,7 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
           for (let k = 0; k < 6; k++) {
             const d = st.distance + (k - 2.5) * 13;
             alignment.offsetPoint(d, s * (params.trackCentres / 2 + 2.4), p);
-            composeMatrix(m, p.x, y, p.z, yaw, 1, 1, 1);
+            composeMatrix(m, p.x, yAt(st), p.z, yaw, 1, 1, 1);
             barricades.setMatrixAt(i++, m);
           }
         }
@@ -295,7 +336,7 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
       barricades.computeBoundingSphere();
     }
     return { people, barricades };
-  }, [inRange, alignment, params, quality, crowdLevel]);
+  }, [inRange, alignment, params, quality, crowdLevel, route.profile]);
   // Rebuilt when the crowd changes, so free the old meshes.
   useEffect(
     () => () => {
@@ -317,9 +358,9 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     const keys: { id: string; dir: 1 | -1 }[] = [];
     const m = new Matrix4();
     const p = { x: 0, z: 0 };
-    const y = params.railLevel + -0.42;
     let i = 0;
     for (const st of inRange) {
+      const y = route.profile.railAt(st.distance) + -0.42;
       for (const dir of [1, -1] as const) {
         const d = st.distance + dir * (params.platformLength / 2 + 4);
         const lateral = (params.driving === "left" ? -1 : 1) * dir * (params.trackCentres / 2 + 1.75);
@@ -335,7 +376,7 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     posts.computeBoundingSphere();
     heads.computeBoundingSphere();
     return { posts, heads, keys };
-  }, [inRange, alignment, params, mats.steel]);
+  }, [inRange, alignment, params, mats.steel, route.profile]);
 
   const lastHold = useRef<string | null>("__init__");
   const tmpColor = useMemo(() => new Color(), []);
@@ -371,6 +412,21 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     [geos, mats],
   );
   useEffect(
+    () => () => {
+      for (const k of ["concrete", "platformTop", "roof", "facade", "steel"]) ugMats[k].dispose();
+    },
+    [ugMats],
+  );
+  useEffect(
+    () => () =>
+      underground.forEach((g) => {
+        Object.values(g.hall).forEach((x) => x.dispose());
+        Object.values(g.entrances).forEach((x) => x.dispose());
+        g.boards.dispose();
+      }),
+    [underground],
+  );
+  useEffect(
     () => () => flyoverGeos.forEach(({ geo }) => Object.values(geo).forEach((g) => g.dispose())),
     [flyoverGeos],
   );
@@ -382,8 +438,14 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
       {flyoverGeos.map(({ station, geo }) => (
         <VariantMeshes key={station.id} geo={geo} stations={[station]} mats={mats} />
       ))}
+      {underground.map((g) => (
+        <group key={g.rail}>
+          <VariantMeshes geo={g.hall} stations={g.stations} mats={ugMats} renderOrder={TUNNEL_ORDER} />
+          <VariantMeshes geo={g.entrances} stations={g.stations} mats={entranceMats} />
+        </group>
+      ))}
       {inRange.map((s) => (
-        <SignBoards key={s.id} station={s} geometry={geos.boards} lineColour={line.colour} />
+        <SignBoards key={s.id} station={s} geometry={underground.find((g) => g.stations.includes(s))?.boards ?? geos.boards} lineColour={line.colour} />
       ))}
       {pools && <primitive object={pools} />}
       {extras.people && <primitive object={extras.people} />}

@@ -220,3 +220,118 @@ export function buildSignBoards(d: StationDims, level: number): BufferGeometry {
   }
   return mergeGeometries(parts)!;
 }
+
+
+/* ------------------------------------------------------------------ */
+/* Underground stations                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Underground box station: hall half-width and clear height above the rail. */
+const UG_HALF = 13;
+const UG_CEILING = 8;
+
+/**
+ * Underground side-platform station (CMRL-style): a concrete box around the
+ * tracks with wide platforms, full-height platform screen doors, a row of
+ * columns, ceiling light strips and escalator banks at each end. Same
+ * station-local frame as the elevated station; `d.rail` is below ground.
+ */
+export function buildUndergroundStation(d: StationDims): StationGeometry {
+  const out: Record<keyof StationGeometry, BufferGeometry[]> = { concrete: [], platformTop: [], tactile: [], roof: [], steel: [], glass: [], facade: [], lights: [] };
+  const R = d.rail;
+  const L = d.platformLength;
+  const X = L / 2 + 12;
+  const edge = d.trackCentres / 2 + 1.52;
+  const outer = UG_HALF - 0.6;
+  const top = R + d.platformHeight;
+  // Floor slab, side walls, roof slab, end walls above the tunnel mouths.
+  out.concrete.push(box(-X, X, R - 1.4, R + VIADUCT.deckTop, -UG_HALF, UG_HALF));
+  for (const s of [-1, 1]) {
+    out.concrete.push(box(-X, X, R - 1.4, R + UG_CEILING, s < 0 ? -UG_HALF : UG_HALF - 0.6, s < 0 ? -UG_HALF + 0.6 : UG_HALF));
+    out.concrete.push(box(s < 0 ? -X : X - 0.6, s < 0 ? -X + 0.6 : X, R + 6.8, R + UG_CEILING, -UG_HALF, UG_HALF));
+    for (const z of [-1, 1]) out.concrete.push(box(s < 0 ? -X : X - 0.6, s < 0 ? -X + 0.6 : X, R - 1.4, R + UG_CEILING, z < 0 ? -UG_HALF : 6.2, z < 0 ? -6.2 : UG_HALF));
+  }
+  out.roof.push(box(-X, X, R + UG_CEILING, R + UG_CEILING + 0.6, -UG_HALF, UG_HALF));
+  for (const s of [-1, 1]) {
+    const [z0, z1] = s < 0 ? [-outer, -edge] : [edge, outer];
+    out.concrete.push(box(-L / 2 - 6, L / 2 + 6, R + VIADUCT.deckTop, top - 0.01, z0, z1));
+    const [t0, t1] = s < 0 ? [-outer, -(edge + 0.55)] : [edge + 0.55, outer];
+    out.platformTop.push(box(-L / 2 - 6, L / 2 + 6, top - 0.01, top + 0.005, t0, t1));
+    const [y0, y1] = s < 0 ? [-(edge + 0.55), -edge] : [edge, edge + 0.55];
+    out.tactile.push(box(-L / 2, L / 2, top - 0.01, top + 0.012, y0, y1));
+    // Full-height platform screen doors: glass panels on steel posts, a header with the door lights.
+    const zp = s * (edge - 0.05);
+    out.glass.push(box(-L / 2, L / 2, top, top + 2.3, zp - 0.02, zp + 0.02));
+    for (let x = -L / 2; x <= L / 2 + 0.01; x += 2.0) out.steel.push(box(x - 0.05, x + 0.05, top, top + 2.3, zp - 0.05, zp + 0.05));
+    out.facade.push(box(-L / 2, L / 2, top + 2.3, top + 2.75, zp - 0.12, zp + 0.12));
+    // Columns down the middle of each platform.
+    for (let x = -L / 2 + 4; x <= L / 2 - 4 + 0.01; x += 9) {
+      const c = new CylinderGeometry(0.42, 0.42, UG_CEILING - d.platformHeight, 14);
+      c.translate(x, top + (UG_CEILING - d.platformHeight) / 2, s * 10);
+      out.facade.push(c.toNonIndexed());
+    }
+    // Ceiling light strips.
+    for (const lz of [5.2, 8.6, 11.4]) out.lights.push(box(-L / 2, L / 2, R + UG_CEILING - 0.08, R + UG_CEILING - 0.02, s * lz - 0.15, s * lz + 0.15));
+    // Escalator banks rising towards the concourse at each end.
+    for (const xs of [-1, 1]) {
+      const g = new BoxGeometry(14, 0.6, 2.4);
+      g.rotateZ(xs * 0.52);
+      g.translate(xs * (L / 2 - 4), top + 3.4, s * 10.6);
+      out.steel.push(g.toNonIndexed());
+    }
+  }
+  return {
+    concrete: merge(out.concrete),
+    platformTop: merge(out.platformTop),
+    tactile: merge(out.tactile),
+    roof: merge(out.roof),
+    steel: merge(out.steel),
+    glass: merge(out.glass),
+    facade: merge(out.facade),
+    lights: merge(out.lights),
+  };
+}
+
+/** Street entrances of an underground station: glass-fronted kiosks on both footpaths, one at each end. */
+export function buildStationEntrances(d: StationDims): StationGeometry {
+  const out: Record<keyof StationGeometry, BufferGeometry[]> = { concrete: [], platformTop: [], tactile: [], roof: [], steel: [], glass: [], facade: [], lights: [] };
+  const L = d.platformLength;
+  for (const s of [-1, 1]) {
+    for (const xs of [-1, 1]) {
+      const x = xs * (L / 2 - 8);
+      const z = s * (ROAD.halfWidth + ROAD.sidewalk + 3.2);
+      out.concrete.push(box(x - 4, x + 4, 0, 0.3, z - 2.4, z + 2.4));
+      out.facade.push(box(x - 4, x + 4, 0.3, 3.6, z - 2.2, z + 2.2));
+      out.roof.push(box(x - 4.6, x + 4.6, 3.6, 4.0, z - 2.8, z + 2.8));
+      // Glass front towards the road, with a light band over it.
+      const zf = z - s * 2.25;
+      out.glass.push(box(x - 3.4, x + 3.4, 0.3, 3.2, zf - 0.03, zf + 0.03));
+      out.lights.push(box(x - 3.4, x + 3.4, 3.3, 3.5, zf - 0.05, zf + 0.05));
+    }
+  }
+  return {
+    concrete: merge(out.concrete),
+    platformTop: merge(out.platformTop.length ? out.platformTop : [box(0, 0.01, 0, 0.01, 0, 0.01)]),
+    tactile: merge(out.tactile.length ? out.tactile : [box(0, 0.01, 0, 0.01, 0, 0.01)]),
+    roof: merge(out.roof),
+    steel: merge(out.steel.length ? out.steel : [box(0, 0.01, 0, 0.01, 0, 0.01)]),
+    glass: merge(out.glass),
+    facade: merge(out.facade),
+    lights: merge(out.lights),
+  };
+}
+
+/** Name boards on the platform walls of an underground station. */
+export function buildUndergroundSignBoards(d: StationDims): BufferGeometry {
+  const parts: BufferGeometry[] = [];
+  const top = d.rail + d.platformHeight;
+  for (const s of [-1, 1]) {
+    for (const x of [-34, -11.5, 11.5, 34]) {
+      const g = new PlaneGeometry(3.4, 0.85);
+      if (s > 0) g.rotateY(Math.PI);
+      g.translate(x, top + 3.4, s * (UG_HALF - 0.62));
+      parts.push(g.toNonIndexed());
+    }
+  }
+  return mergeGeometries(parts)!;
+}

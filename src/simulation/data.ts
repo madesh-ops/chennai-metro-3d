@@ -8,10 +8,17 @@ import type { DataBundle } from "./types.ts";
 
 export const dataBundle = { stations, routes, tracks, landmarks, network } as unknown as DataBundle;
 
-let cached: RouteModel | null = null;
+const cache = new Map<string, RouteModel>();
 
-/** The route model is pure data + maths, so it is built once per page load. */
-export function getRouteModel(): RouteModel {
-  if (!cached) cached = buildRouteModel(dataBundle);
-  return cached;
+/** The default route (the one people ride today). */
+export const DEFAULT_ROUTE_ID = (routes as { routes: { id: string }[] }).routes[0].id;
+
+/** Route models are pure data + maths, so each is built once per page load. */
+export function getRouteModel(routeId: string = DEFAULT_ROUTE_ID): RouteModel {
+  let m = cache.get(routeId);
+  if (!m) {
+    m = buildRouteModel(dataBundle, routeId);
+    cache.set(routeId, m);
+  }
+  return m;
 }

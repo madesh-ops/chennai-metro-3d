@@ -36,6 +36,8 @@ export interface TrainMotion {
 }
 
 const UP = new Vector3(0, 1, 0);
+const _axisZp = new Vector3(0, 0, 1);
+const _pitchQ = new Quaternion();
 const CAR_COUNT = 3;
 
 /**
@@ -61,17 +63,25 @@ export function TrainPoseDriver({ getMotion }: { getMotion: () => TrainMotion })
 
     for (let k = 0; k < CAR_COUNT; k++) {
       const carCentre = m.centerDistance + m.direction * (1 - k) * TRAIN.pitch;
-      alignment.offsetPoint(carCentre + m.direction * BOGIE_OFFSET, pose.lateral, fp);
-      alignment.offsetPoint(carCentre - m.direction * BOGIE_OFFSET, pose.lateral, rp);
+      const dFront = carCentre + m.direction * BOGIE_OFFSET;
+      const dRear = carCentre - m.direction * BOGIE_OFFSET;
+      alignment.offsetPoint(dFront, pose.lateral, fp);
+      alignment.offsetPoint(dRear, pose.lateral, rp);
       const car = pose.cars[k];
-      car.position.set((fp.x + rp.x) / 2, params.railLevel, (fp.z + rp.z) / 2);
+      // Each car sits on the rail height under its two bogies and pitches with the grade.
+      const hf = route.profile.railAt(dFront);
+      const hr = route.profile.railAt(dRear);
+      car.position.set((fp.x + rp.x) / 2, (hf + hr) / 2, (fp.z + rp.z) / 2);
       dir.set(fp.x - rp.x, 0, fp.z - rp.z).normalize();
-      // Trailing cab faces backwards.
-      car.yaw = Math.atan2(-dir.z, dir.x) + (k === CAR_COUNT - 1 ? Math.PI : 0);
-      car.quaternion.setFromAxisAngle(UP, car.yaw);
+      // Trailing cab faces backwards (and so pitches the other way).
+      const trailing = k === CAR_COUNT - 1;
+      car.yaw = Math.atan2(-dir.z, dir.x) + (trailing ? Math.PI : 0);
+      const pitch = Math.atan2(hf - hr, 2 * BOGIE_OFFSET) * (trailing ? -1 : 1);
+      car.quaternion.setFromAxisAngle(UP, car.yaw).multiply(_pitchQ.setFromAxisAngle(_axisZp, pitch));
       if (k === 0) {
         pose.forward.copy(dir);
         pose.head.copy(car.position).addScaledVector(dir, NOSE_TIP);
+        pose.head.y += Math.sin(pitch) * NOSE_TIP;
       }
       if (k === 1) pose.center.copy(car.position);
     }

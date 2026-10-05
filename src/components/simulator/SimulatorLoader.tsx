@@ -4,8 +4,9 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import type { ComponentType } from "react";
 import { BootScreen, LoadFailure } from "./BootScreen";
+import routesData from "../../data/routes.json";
 
-type AppProps = { from: string; to: string };
+type AppProps = { routeId?: string; from: string; to: string };
 
 // Start downloading the 3D scene alongside the app shell instead of after it;
 // SimulatorApp's own dynamic import then resolves from the module cache.
@@ -23,14 +24,24 @@ const SimulatorApp = dynamic<AppProps>(
   { ssr: false, loading: () => <BootScreen /> },
 );
 
-export function SimulatorLoader({ from, to }: AppProps) {
-  return <SimulatorApp key={`${from}__${to}`} from={from} to={to} />;
+export function SimulatorLoader({ routeId, from, to }: AppProps) {
+  return <SimulatorApp key={`${routeId ?? ""}__${from}__${to}`} routeId={routeId} from={from} to={to} />;
 }
 
-/** Journey from ?from=…&to=… (defaults: the whole line, first to last served station). */
+/** Served termini of each route, for default journeys (?route=… without from/to). */
+const ROUTE_ENDS: Record<string, [string, string]> = Object.fromEntries(
+  (routesData as { routes: { id: string; stationIds: string[] }[] }).routes.map((r) => [r.id, [r.stationIds[0], r.stationIds[r.stationIds.length - 1]]]),
+);
+
+/**
+ * Journey from ?route=…&from=…&to=… (defaults: the first route, its whole
+ * length). Old links without a route keep riding the original Line 4 route.
+ */
 export function SimulatorFromUrl({ first, last }: { first: string; last: string }) {
   const params = useSearchParams();
-  const from = params.get("from") ?? first;
-  const to = params.get("to") ?? (from === last ? first : last);
-  return <SimulatorLoader from={from} to={to} />;
+  const routeId = params.get("route") ?? undefined;
+  const [a, b] = (routeId && ROUTE_ENDS[routeId]) || [first, last];
+  const from = params.get("from") ?? a;
+  const to = params.get("to") ?? (from === b ? a : b);
+  return <SimulatorLoader routeId={routeId} from={from} to={to} />;
 }

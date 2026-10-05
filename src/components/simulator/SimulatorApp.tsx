@@ -54,14 +54,14 @@ function DataError({ message }: { message: string }) {
   );
 }
 
-export default function SimulatorApp({ from, to }: { from: string; to: string }) {
+export default function SimulatorApp({ routeId, from, to }: { routeId?: string; from: string; to: string }) {
   const built = useMemo(() => {
     try {
-      return { engine: new SimulationEngine(getRouteModel(), from, to), error: null };
+      return { engine: new SimulationEngine(getRouteModel(routeId), from, to), error: null };
     } catch (e) {
       return { engine: null, error: e instanceof Error ? e.message : "Unknown error while loading route data." };
     }
-  }, [from, to]);
+  }, [routeId, from, to]);
 
   if (!built.engine) return <DataError message={built.error ?? ""} />;
   return <Simulator engine={built.engine} />;

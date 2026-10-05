@@ -1,4 +1,5 @@
 import { Alignment, type Vec2 } from "./Alignment.ts";
+import { buildVerticalProfile, flatProfile, type VerticalProfile } from "./VerticalProfile.ts";
 import { centroid, createProjection, type LatLon, type LocalProjection } from "../utils/coordinates.ts";
 import type {
   CoordinateQuality,
@@ -176,6 +177,8 @@ export interface RouteModel {
   placedLandmarks: LandmarkPlacement[];
   /** Line 5 viaduct leaving the double-decker's west end towards Mount–Poonamallee Road, if defined. */
   line5Branch: BranchModel | null;
+  /** Rail height and structure (elevated / underground / ramp) along the alignment. */
+  profile: VerticalProfile;
   /** Every Line 5 branch (west towards Mount–Poonamallee Road, east towards Virugambakkam). */
   line5Branches: BranchModel[];
   /** Stretches whose surroundings follow a traced pattern, with a style per side (+1 right, -1 left). */
@@ -653,6 +656,20 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
     return { raw, road, startS, endS, halfWidth, crest, heightAt, corridorFrom, corridorTo, corridorHeightAt };
   });
 
+  // Vertical profile: the real track's elevated / underground runs (network distances mapped onto
+  // the alignment, which adds a tail at each end), stations kept level.
+  const railLevel = tracks.alignment.railLevelM.value;
+  let profile: VerticalProfile = flatProfile(railLevel);
+  if (net && net.structure.length) {
+    const scale = (alignment.length - 2 * tail) / net.lengthM;
+    const toD = (nd: number) => tail + nd * scale;
+    const runs = net.structure.map(([a, b, kind, layer]) => ({ from: toD(a), to: toD(b), kind, layer }));
+    runs[0].from = 0;
+    runs[runs.length - 1].to = alignment.length;
+    const allStations = net.stations.map((n) => toD(n.d));
+    profile = buildVerticalProfile(runs, alignment.length, allStations, railLevel);
+  }
+
   const { operations } = tracks;
   return {
     id: route.id,
@@ -702,6 +719,7 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
     line5Branch,
     line5Branches,
     neighbourhoods,
+    profile,
     flyovers,
     sideRoads,
     lastVerified: data.stations.meta.lastVerified,
