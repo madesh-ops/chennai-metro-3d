@@ -1,6 +1,6 @@
 {
   "meta": {
-    "lastVerified": "2026-10-04",
+    "lastVerified": "2026-10-05",
     "note": "Landmarks with a 'model' are drawn as stylised 3D models at 'position'; the rest is context for station pages. Only public places are named; shops and businesses in the scene use invented names. positionQuality 'approximate' means the exact footprint or side of the road is not published."
   },
   "landmarks": [
@@ -235,6 +235,29 @@
       },
       "positionQuality": "approximate",
       "positionSource": "Traced from satellite imagery supplied by the project owner: south side of Arcot Road just west of Vadapalani station, behind its car park."
+    },
+    {
+      "id": "chandra-metro-mall",
+      "name": "Chandra Metro Mall",
+      "nameTa": "சந்திரா மெட்ரோ வணிகவளாகம்",
+      "nameTaVerified": true,
+      "kind": "commercial",
+      "nearStation": "alwarthirunagar",
+      "description": "Shopping mall and multiplex on Arcot Road, Virugambakkam. Modelled on street photos of its front: a blue glass facade sweeping up like a sail, a gold band of billboards, and a white drum crowned by a flared, ribbed bowl. The Tamil name is as shown on its own sign. Ads, films and shop signage are invented.",
+      "source": "Street photos supplied by the project owner; Mappls listing 'PVR INOX, 3rd Floor, Chandra Metro Mall, 262, Arcot Road, Virugambakkam' (13.046805, 80.190419).",
+      "model": {
+        "type": "glass-mall",
+        "along": 52,
+        "depth": 52,
+        "height": 33
+      },
+      "position": {
+        "lat": 13.046805,
+        "lon": 80.190419,
+        "side": "north"
+      },
+      "positionQuality": "approximate",
+      "positionSource": "Mappls — 262 Arcot Road, Virugambakkam (13.046805, 80.190419), projected onto the modelled line. Address in Rajeswari Colony, Virugambakkam, north of Arcot Road; snapped to the roadside on that side. Exact frontage not published."
     },
     {
       "id": "vadapalani-murugan-temple",

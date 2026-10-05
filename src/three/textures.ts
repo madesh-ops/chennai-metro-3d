@@ -374,6 +374,25 @@ function kamalaSign(): Texture {
   return finish(c, false);
 }
 
+/** Chandra Metro Mall name sign: Tamil above, English below, on dark slate. */
+function chandraSign(): Texture {
+  const W = 1024;
+  const H = 280;
+  const { c, ctx } = canvas(W, H);
+  const f = fontFamilies();
+  ctx.fillStyle = "#2f3438";
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#f2f2ee";
+  fitFont(ctx, "சந்திரா மெட்ரோ வணிகவளாகம்", 600, f.tamil, 70, 26, W - 90);
+  ctx.fillText("சந்திரா மெட்ரோ வணிகவளாகம்", W / 2, 100);
+  // The real sign uses a slanted serif script.
+  fitFont(ctx, "Chandra Metro Mall", 700, "Georgia, 'Times New Roman', serif", 96, 36, W - 80);
+  ctx.font = `italic ${ctx.font}`;
+  ctx.fillText("Chandra Metro Mall", W / 2, 222);
+  return finish(c, false);
+}
+
 const AD_COPY = [
   ["MEGA SALE", "FLAT 50% OFF"],
   ["NEW ARRIVALS", "FESTIVE COLLECTION"],
@@ -504,7 +523,7 @@ function filmPoster(seed: number, wide: boolean): Texture {
   return finish(c, false);
 }
 
-/** Texture for a commercial-model panel key: mall-sign, kamala-sign, hoarding:N, poster:N, poster-wide:N. */
+/** Texture for a commercial-model panel key: mall-sign, kamala-sign, chandra-sign, hoarding:N, poster:N, poster-wide:N. */
 export function makeLandmarkPanelTexture(key: string): Texture {
   const [kind, n] = key.split(":");
   const seed = Number(n) || 0;
@@ -513,6 +532,8 @@ export function makeLandmarkPanelTexture(key: string): Texture {
       return mallSign();
     case "kamala-sign":
       return kamalaSign();
+    case "chandra-sign":
+      return chandraSign();
     case "poster":
       return filmPoster(seed, false);
     case "poster-wide":

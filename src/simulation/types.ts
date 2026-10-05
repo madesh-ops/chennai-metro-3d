@@ -223,7 +223,7 @@ export interface OperationsParams {
   terminusAlightSeconds: number;
 }
 
-export type LandmarkModelType = "temple" | "lake" | "hospital" | "bus-stand" | "depot" | "mall" | "cinema";
+export type LandmarkModelType = "temple" | "lake" | "hospital" | "bus-stand" | "depot" | "mall" | "cinema" | "glass-mall";
 
 /** Where a drawn landmark stands: published coordinates, or relative to a station. */
 export type RawLandmarkPosition =

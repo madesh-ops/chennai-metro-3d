@@ -19,7 +19,7 @@ export interface LandmarkFootprint {
 }
 
 /** Facilities that front the road: snapped to the roadside instead of their published point. */
-const FRONTAGE = new Set<LandmarkPlacement["type"]>(["bus-stand", "hospital", "mall", "cinema"]);
+const FRONTAGE = new Set<LandmarkPlacement["type"]>(["bus-stand", "hospital", "mall", "cinema", "glass-mall"]);
 
 const cache = new WeakMap<RouteModel, LandmarkFootprint[]>();
 

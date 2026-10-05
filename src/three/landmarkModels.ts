@@ -13,7 +13,7 @@ import {
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { LandmarkModelType } from "../simulation/types.ts";
 import { mulberry32, pick, range as rr } from "../utils/random.ts";
-import { cinema, mall, type Panel } from "./commercialModels.ts";
+import { cinema, glassMall, mall, type Panel } from "./commercialModels.ts";
 
 /**
  * Stylised models of real landmarks, built from simple shapes with vertex
@@ -346,6 +346,8 @@ export function buildLandmarkModel(type: LandmarkModelType, along: number, depth
       return { ...mall(along, depth, height ?? 32, seed), board: null };
     case "cinema":
       return { ...cinema(along, depth, height ?? 24, seed), board: null };
+    case "glass-mall":
+      return { ...glassMall(along, depth, height ?? 33, seed), board: null };
     case "depot":
     default:
       return depot(along, depth);

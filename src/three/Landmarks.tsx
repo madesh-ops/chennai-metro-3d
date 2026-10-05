@@ -19,6 +19,7 @@ const BOARD_STYLE: Record<LandmarkModelType, BoardStyle> = {
   depot: "transport",
   mall: "civic",
   cinema: "civic",
+  "glass-mall": "civic",
 };
 
 /** Shallow water with a gentle moving ripple in the normals. */
