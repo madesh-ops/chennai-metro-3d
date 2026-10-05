@@ -98,7 +98,11 @@ export default function SimulatorScene({ engine, onProgress, onContextLost }: Si
   const env = useMemo(() => createSceneEnv(useViewStore.getState().timeOfDay === "night" ? 1 : 0), []);
   const pose = useMemo(() => createTrainPose(3), []);
   const traffic = useMemo(() => createTrafficState(), []);
-  const range = useMemo<[number, number]>(() => [0, route.alignment.length], [route]);
+  // The route's own stretch plus tail tracks (the alignment can carry the whole line beyond it).
+  const range = useMemo<[number, number]>(() => {
+    const margin = route.params.tailTrack + 400;
+    return [Math.max(0, route.startDistance - margin), Math.min(route.alignment.length, route.endDistance + margin)];
+  }, [route]);
   const crossStreets = useMemo(() => planCrossStreets(route, range[0], range[1]), [route, range]);
   const signal = useMemo<StationSignalState>(() => ({ holdAt: null }), []);
 

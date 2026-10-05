@@ -1,6 +1,7 @@
 import type { StationSummary } from "../../lib/routeSummary";
 
 const QUALITY_LABEL: Record<string, string> = {
+  osm: "Position from OpenStreetMap",
   station: "Station coordinates",
   "bus-stop": "Approx. (bus stop)",
   locality: "Approx. (locality)",

@@ -116,7 +116,9 @@ Verified on **3 Oct 2026**. Full provenance is on `/about`.
 | Length 14.64 km, opening 11 Oct 2026, 10-min headway, ₹10–40 | Reported |
 | Coordinates: 6 stations from their Wikipedia articles, 5 from same-name bus stop/locality | Verified / approximate (±150–300 m) |
 | Unopened Arcot Road station positions | Approximate (spaced to match the reported 3.75 km double-decker) |
-| Alignment between stations | Approximate (spline through stations, not the surveyed viaduct) |
+| Track path, station positions, elevated / underground stretches | From OpenStreetMap (`src/data/network.json`), accurate to a few metres; the train runs on the real Line 4 track |
+| Line 5 at the double-decker (where it joins and leaves Line 4) | From the OpenStreetMap Line 5 track; descent to normal rail level assumed |
+| Mount–Poonamallee Road, Kundrathur Road, MGR Flyover position | From OpenStreetMap; flyover length (505 m) from the published figure |
 | Train: Alstom Metropolis, 3 cars, 67.8 m, 80 km/h operating | Verified |
 | Porur–Vadapalani limit 40 km/h | Reported (May 2026) |
 | Acceleration, braking, dwell | Assumed (typical metro values) |
@@ -135,7 +137,7 @@ Verified on **3 Oct 2026**. Full provenance is on `/about`.
 | Train look: blue rounded cab, blue roof band, stainless sides with a blue stripe under the windows, after photos of CMRL Alstom Metropolis trainsets | Stylised from reference photos |
 | Interior, buildings, traffic | Stylised / procedural |
 
-As a sanity check, the spline through the published coordinates measures **14.61 km** against the official **14.64 km** (0.2 % difference).
+As a sanity check, the real track (OpenStreetMap) from Poonamallee Bypass to Vadapalani measures **14.73 km** against the official **14.64 km** (0.6 % difference).
 
 To correct anything, edit the JSON. Components read the route model, never hard-coded values. Stations can be added, removed or re-ordered; `validateBundle()` reports problems in plain language.
 

@@ -2,10 +2,11 @@ import stations from "../data/stations.json";
 import routes from "../data/routes.json";
 import tracks from "../data/tracks.json";
 import landmarks from "../data/landmarks.json";
+import network from "../data/network.json";
 import { buildRouteModel, type RouteModel } from "./RouteController.ts";
 import type { DataBundle } from "./types.ts";
 
-export const dataBundle = { stations, routes, tracks, landmarks } as unknown as DataBundle;
+export const dataBundle = { stations, routes, tracks, landmarks, network } as unknown as DataBundle;
 
 let cached: RouteModel | null = null;
 

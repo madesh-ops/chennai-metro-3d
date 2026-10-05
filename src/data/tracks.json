@@ -69,45 +69,29 @@
       "source": "jagran-double-decker",
       "line5West": {
         "line": "line-5",
-        "peelArc": {
-          "radiusM": 99.7,
-          "turnDeg": 143.0,
-          "note": "Circular arc: leaves the upper deck in line with it (no kink) and runs tangentially onto Mount–Poonamallee Road just east of the MGR flyover. About the widest curve the modelled junction allows."
-        },
+        "lengthM": 1500,
         "descent": {
           "fromM": 60,
           "toM": 560,
           "status": "assumed"
         },
         "streetWidthM": 9,
-        "status": "approximate",
-        "source": "Shape traced from satellite imagery supplied by the project owner: Line 5 peels off the upper deck, drops south along Ramakrishna Street and lands on Mount–Poonamallee Road just east of the MGR flyover, heading towards Mugalivakkam. Station order from Wikipedia — Red Line (Chennai Metro).",
-        "side": "south",
-        "landsOn": {
-          "road": "mount-poonamallee-road",
-          "fromJunctionM": 410
-        }
+        "status": "osm",
+        "note": "Line 5 leaves the double-decker near Alapakkam and heads south along Mount–Poonamallee Road towards Mugalivakkam.",
+        "source": "Path: Line 5 track in OpenStreetMap (network.json), where it parts from Line 4. Descent to normal rail level assumed."
       },
       "line5East": {
         "line": "line-5",
-        "side": "north",
-        "leavesPastStationM": 500,
-        "peelArc": {
-          "radiusM": 110,
-          "turnDeg": 90,
-          "note": "Circular arc: leaves the upper deck in line with it (no kink) and turns north towards Virugambakkam."
-        },
-        "runOn": {
-          "straightM": 900
-        },
+        "lengthM": 1500,
         "descent": {
           "fromM": 80,
           "toM": 520,
           "status": "assumed"
         },
         "streetWidthM": 9,
-        "status": "approximate",
-        "source": "Satellite view supplied by the project owner: past Alwarthirunagar and Chandra Metro Mall the upper deck curves north off Arcot Road at Rajeshwari Colony, Virugambakkam. CMRL Phase II map: Corridor 5 runs from Arcot Road north via Virugambakkam Metro to Koyambedu. Where exactly it leaves (500 m past Alwarthirunagar in the model) is traced, not published."
+        "status": "osm",
+        "note": "Line 5 leaves the double-decker past Alwarthirunagar, just beyond Chandra Metro Mall, and heads north towards Virugambakkam.",
+        "source": "Path: Line 5 track in OpenStreetMap (network.json), where it parts from Line 4. Descent to normal rail level assumed."
       }
     },
     "platform": {
@@ -156,7 +140,7 @@
           "note": "Straight grade (about 4.3 %) with 40 m rounded ends."
         },
         "opened": "2017-06-25",
-        "source": "india.com / PTI — 'TN Chief Minister opens Porur flyover' (505 m, Rs 54 crore, 25 June 2017); Wikipedia — Flyovers in Chennai (0.5 km, 4 lanes); DT Next — metro steel portal beams near the flyover. Position along Mount–Poonamallee Road (≈200 m west to ≈305 m east of the junction) from the satellite view supplied by the project owner.",
+        "source": "india.com / PTI — 'TN Chief Minister opens Porur flyover' (505 m, Rs 54 crore, 25 June 2017); Wikipedia — Flyovers in Chennai (0.5 km, 4 lanes); DT Next — metro steel portal beams near the flyover. Position along Mount–Poonamallee Road: centred on the 'MGR FLyover' ways in OpenStreetMap; the published 505 m length is kept.",
         "road": "mount-poonamallee-road",
         "fromJunctionM": -200,
         "toJunctionM": 305
@@ -207,8 +191,23 @@
             456
           ]
         ],
-        "status": "approximate",
-        "source": "Traced from satellite imagery supplied by the project owner: at Porur Junction the metro turns north-east onto Arcot Road while Mount–Poonamallee Road (and the MGR flyover) continues east-south-east; Kundrathur Main Road leaves south-west."
+        "status": "osm",
+        "source": "Path: OpenStreetMap (SH55 Mount–Poonamallee–Avadi Road and the MGR Flyover), walked east from Porur Junction. At the junction the metro turns north-east onto Arcot Road while Mount–Poonamallee Road (and the MGR flyover) continues east.",
+        "osm": {
+          "names": [
+            "Mount - Poonamallee - Avadi Road",
+            "Mount Poonamallee Highway",
+            "MGR FLyover"
+          ],
+          "heading": [
+            1,
+            0
+          ],
+          "lengthM": 2500,
+          "features": {
+            "mgr-flyover": "MGR FLyover"
+          }
+        }
       },
       {
         "id": "kundrathur-road",
@@ -234,8 +233,18 @@
             405
           ]
         ],
-        "status": "approximate",
-        "source": "Traced from satellite imagery supplied by the project owner: at Porur Junction the metro turns north-east onto Arcot Road while Mount–Poonamallee Road (and the MGR flyover) continues east-south-east; Kundrathur Main Road leaves south-west."
+        "status": "osm",
+        "source": "Path: OpenStreetMap (SH113 Kodambakkam–Sriperumbudur Road, called Kundrathur Main Road locally), walked south-west from Porur Junction.",
+        "osm": {
+          "names": [
+            "Kodambakkam – Sriperumbudur Road"
+          ],
+          "heading": [
+            -0.7,
+            0.7
+          ],
+          "lengthM": 1500
+        }
       }
     ]
   },

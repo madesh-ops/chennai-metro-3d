@@ -6,6 +6,8 @@ import type {
   DataBundle,
   OperationsParams,
   RawBranch,
+  RawNetworkLine,
+  RawNetworkStation,
   RawNeighbourhood,
   NeighbourhoodStyle,
   RawFlyover,
@@ -242,14 +244,9 @@ export function validateBundle(data: DataBundle, routeId?: string): RawRoute {
     ["east", ddRaw?.line5East],
   ] as const) {
     if (!branch) continue;
-    const arc = branch.peelArc;
-    if (!(arc?.radiusM > 0 && arc.turnDeg > 0 && arc.turnDeg < 180))
-      throw new RouteDataError(`The Line 5 ${end} branch needs a peel-away arc with a positive radius and a turn between 0 and 180 degrees.`);
-    if (branch.landsOn) {
-      if (!roadIds.has(branch.landsOn.road)) throw new RouteDataError(`The Line 5 ${end} branch lands on unknown road "${branch.landsOn.road}".`);
-    } else if (!(branch.runOn && branch.runOn.straightM > 0)) {
-      throw new RouteDataError(`The Line 5 ${end} branch needs either a side road to land on or a straight run-on length.`);
-    }
+    if (!(branch.lengthM > 0)) throw new RouteDataError(`The Line 5 ${end} branch needs a positive length to draw.`);
+    if (!(branch.descent && branch.descent.toM > branch.descent.fromM && branch.descent.fromM >= 0))
+      throw new RouteDataError(`The Line 5 ${end} branch needs a descent that ends after it starts.`);
   }
   const drawn = new Set((data.landmarks?.landmarks ?? []).filter((lm) => lm.model && lm.position).map((lm) => lm.id));
   for (const n of data.tracks.neighbourhoods ?? []) {
@@ -282,21 +279,22 @@ function resolveCoordinates(st: RawStation, byId: Map<string, RawStation>): LatL
   return { lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f };
 }
 
+/** The network station for a curated station: by `osmName`, else by name (ignoring a trailing "Metro"). */
+function networkStation(net: RawNetworkLine, st: RawStation): RawNetworkStation | undefined {
+  const norm = (n: string) => n.toLowerCase().replace(/\s+metro$/, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const want = norm(st.osmName ?? st.name);
+  return net.stations.find((n) => norm(n.name) === want);
+}
+
 export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel {
   const route = validateBundle(data, routeId);
   const line = data.routes.lines.find((l) => l.id === route.line)!;
   const tracks = data.tracks;
   const byId = new Map(data.stations.stations.map((s) => [s.id, s]));
   const raw = route.stationIds.map((id) => byId.get(id)!);
+  const net = data.network?.lines.find((l) => l.id === route.line);
 
-  const coords = raw.map((s) => resolveCoordinates(s, byId));
-  const projection = createProjection(centroid(coords));
-  const local: Vec2[] = coords.map((c) => {
-    const [x, z] = projection.toLocal(c);
-    return { x, z };
-  });
-
-  // Tail tracks: extend straight beyond each terminus.
+  // Tail tracks: extend straight beyond each end.
   const tail = tracks.alignment.tailTrackM.value;
   const extend = (from: Vec2, toward: Vec2): Vec2 => {
     const dx = from.x - toward.x;
@@ -304,12 +302,48 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
     const len = Math.hypot(dx, dz) || 1;
     return { x: from.x + (dx / len) * tail, z: from.z + (dz / len) * tail };
   };
-  const west = extend(local[0], local[1]);
-  const east = extend(local[local.length - 1], local[local.length - 2]);
-  const alignment = new Alignment([west, ...local, east]);
 
-  const startDistance = alignment.controlDistances[1];
-  const endDistance = alignment.controlDistances[local.length];
+  let projection: LocalProjection;
+  let coords: LatLon[];
+  let local: Vec2[];
+  let alignment: Alignment;
+  let stationDistance: (i: number) => number;
+  if (net && data.network) {
+    // Real track from OpenStreetMap, in the shared city projection.
+    projection = createProjection(data.network.meta.origin);
+    const matched = raw.map((s) => {
+      const n = networkStation(net, s);
+      if (!n) throw new RouteDataError(`Station "${s.id}" (${s.osmName ?? s.name}) is not on ${net.name} in network.json.`);
+      return n;
+    });
+    coords = matched.map((n) => ({ lat: n.lat, lon: n.lon }));
+    local = coords.map((c) => {
+      const [x, z] = projection.toLocal(c);
+      return { x, z };
+    });
+    const pts = net.track.map(([x, z]) => ({ x, z }));
+    alignment = new Alignment([extend(pts[0], pts[1]), ...pts, extend(pts[pts.length - 1], pts[pts.length - 2])]);
+    const distances = matched.map((n, i) => alignment.project(local[i].x, local[i].z, n.d + tail, 800));
+    for (let i = 1; i < distances.length; i++) {
+      if (distances[i] <= distances[i - 1])
+        throw new RouteDataError(`Route "${route.id}": "${raw[i].id}" comes before "${raw[i - 1].id}" on the real track; fix the station order.`);
+    }
+    stationDistance = (i) => distances[i];
+  } else {
+    coords = raw.map((s) => resolveCoordinates(s, byId));
+    projection = createProjection(centroid(coords));
+    local = coords.map((c) => {
+      const [x, z] = projection.toLocal(c);
+      return { x, z };
+    });
+    const west = extend(local[0], local[1]);
+    const east = extend(local[local.length - 1], local[local.length - 2]);
+    alignment = new Alignment([west, ...local, east]);
+    stationDistance = (i) => alignment.controlDistances[i + 1];
+  }
+
+  const startDistance = stationDistance(0);
+  const endDistance = stationDistance(raw.length - 1);
   const modelled = endDistance - startDistance;
   const officialLengthM = route.lengthKm * 1000;
   const displayScale = officialLengthM / modelled;
@@ -323,7 +357,7 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
   }
 
   const stations: StationModel[] = raw.map((s, i) => {
-    const distance = alignment.controlDistances[i + 1];
+    const distance = stationDistance(i);
     return {
       id: s.id,
       name: s.name,
@@ -337,8 +371,8 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
       notes: s.notes ?? "",
       order: i,
       coordinates: coords[i],
-      coordinateQuality: s.coordinates?.quality ?? s.placement?.quality ?? "interpolated",
-      coordinateSource: s.coordinates?.source ?? null,
+      coordinateQuality: net ? "osm" : (s.coordinates?.quality ?? s.placement?.quality ?? "interpolated"),
+      coordinateSource: net ? "osm" : (s.coordinates?.source ?? null),
       distance,
       km: ((distance - startDistance) * displayScale) / 1000,
       local: local[i],
@@ -354,22 +388,53 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
   });
 
   let doubleDecker: RouteModel["doubleDecker"] = null;
+  // Where the upper-deck line's real track runs over ours (network.json), as indices into its track.
+  let upperRun: { line: RawNetworkLine; i0: number; i1: number; d: number[] } | null = null;
   if (dd && stationById.get(dd.from) && stationById.get(dd.to)) {
     const a = stationById.get(dd.from)!.distance;
     const b = stationById.get(dd.to)!.distance;
     const start = Math.min(a, b);
     const end = Math.max(a, b);
-    doubleDecker = {
-      start,
-      end,
-      lengthKm: dd.lengthKm,
-      upperStart: start - (dd.line5West?.leavesPastStationM ?? UPPER_DECK_OVERHANG),
-      upperEnd: end + (dd.line5East?.leavesPastStationM ?? UPPER_DECK_OVERHANG),
-    };
+    let upperStart = start - UPPER_DECK_OVERHANG;
+    let upperEnd = end + UPPER_DECK_OVERHANG;
+    const upperNet = net && data.network?.lines.find((l) => l.id === dd.upperDeck);
+    if (upperNet) {
+      // Project the upper line's track onto ours; its longest stretch within 20 m is the double-decker.
+      const mid = (start + end) / 2;
+      const span = (end - start) / 2 + 3000;
+      const d: number[] = [];
+      const near: boolean[] = [];
+      for (const [x, z] of upperNet.track) {
+        const pd = alignment.project(x, z, mid, span);
+        const c = alignment.point(pd);
+        d.push(pd);
+        near.push(Math.hypot(x - c.x, z - c.z) < 20 && pd > mid - span + 5 && pd < mid + span - 5);
+      }
+      let best = { i0: -1, i1: -1 };
+      for (let i = 0; i < near.length; ) {
+        if (!near[i]) {
+          i++;
+          continue;
+        }
+        let j = i;
+        while (j + 1 < near.length && near[j + 1]) j++;
+        if (j - i > best.i1 - best.i0) best = { i0: i, i1: j };
+        i = j + 1;
+      }
+      if (best.i0 >= 0 && Math.abs(d[best.i1] - d[best.i0]) > 500) {
+        upperStart = Math.min(d[best.i0], d[best.i1]);
+        upperEnd = Math.max(d[best.i0], d[best.i1]);
+        upperRun = { line: upperNet, i0: best.i0, i1: best.i1, d };
+      }
+    }
+    doubleDecker = { start, end, lengthKm: dd.lengthKm, upperStart, upperEnd };
   }
 
   const bounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
-  for (const p of [west, ...local, east]) {
+  // The route's own stretch (the alignment may carry the whole line beyond it).
+  const boundsPts: Vec2[] = [];
+  for (let d = Math.max(0, startDistance - tail); d <= Math.min(alignment.length, endDistance + tail); d += 50) boundsPts.push(alignment.point(d));
+  for (const p of boundsPts) {
     bounds.minX = Math.min(bounds.minX, p.x);
     bounds.maxX = Math.max(bounds.maxX, p.x);
     bounds.minZ = Math.min(bounds.minZ, p.z);
@@ -410,10 +475,30 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
     return (a: number, l: number): Vec2 => ({ x: p.x + t.x * a + r.x * l * sign, z: p.z + t.z * a + r.z * l * sign });
   };
 
-  // Side roads: share the corridor for westM, then follow their traced path.
+  // Side roads: the real road from OpenStreetMap when baked, else share the corridor for westM
+  // then follow the traced path.
   const sideRoads = new Map<string, SideRoadModel>();
   for (const raw of tracks.structures.sideRoads ?? []) {
     const junctionD = stationById.get(raw.atStation)!.distance;
+    const netRoad = net ? data.network?.roads?.[raw.id] : undefined;
+    if (netRoad) {
+      // The junction is where the real road leaves the metro corridor: the last point (in its
+      // first half) still within 20 m of the line.
+      const road = new Alignment(netRoad.points.map(([x, z]) => ({ x, z })));
+      let junctionS = 0;
+      let jd = junctionD;
+      for (let s = 0; s <= road.length / 2; s += 2) {
+        const p = road.point(s);
+        const d = alignment.project(p.x, p.z, junctionD, 1200);
+        const c = alignment.point(d);
+        if (Math.hypot(p.x - c.x, p.z - c.z) < 20) {
+          junctionS = s;
+          jd = d;
+        }
+      }
+      sideRoads.set(raw.id, { raw, alignment: road, junctionS, junctionD: jd, width: raw.widthM });
+      continue;
+    }
     const pts: Vec2[] = [];
     // Densely sampled while it shares the corridor, so the spline cannot bulge off it before the bend.
     for (let d = junctionD - raw.westM; d < junctionD - 1; d += 20) pts.push(alignment.point(d));
@@ -425,59 +510,78 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
     sideRoads.set(raw.id, { raw, alignment: road, junctionS, junctionD, width: raw.widthM });
   }
 
-  // Line 5 branches: peel off the upper deck's ends, then land on a side road or run on.
+  // Line 5 branches: the real upper-line track where it parts from ours, blended in from our
+  // centreline over the first BLEND metres so it leaves the upper deck without a kink.
   const line5Branches: BranchModel[] = [];
-  const buildBranch = (rawBranch: RawBranch, end: "west" | "east"): BranchModel => {
-    const dir = end === "west" ? -1 : 1;
-    const junction = end === "west" ? doubleDecker!.upperStart : doubleDecker!.upperEnd;
-    const at = frameAt(junction, rawBranch.side);
-    // Sample the arc densely so the spline through it stays a true arc (no kink, no tightening).
-    const { radiusM: R, turnDeg } = rawBranch.peelArc;
-    const turn = (turnDeg * Math.PI) / 180;
-    const n = Math.ceil((R * turn) / 4);
-    const points: Vec2[] = [];
-    for (let k = 0; k <= n; k++) {
-      const th = (turn * k) / n;
-      points.push(at(dir * R * Math.sin(th), R * (1 - Math.cos(th))));
+  const BLEND = 350;
+  /** Start the blend this far back inside the shared stretch, while the two tracks still run parallel. */
+  const LEAD_IN = 200;
+  const buildBranch = (rawBranch: RawBranch, end: "west" | "east"): BranchModel | null => {
+    if (!upperRun || !doubleDecker) return null;
+    const { line: upper, i0, i1, d } = upperRun;
+    const junction = end === "west" ? doubleDecker.upperStart : doubleDecker.upperEnd;
+    // The end of the shared stretch at this junction, and the direction (in track indices) away from it.
+    const atStart = Math.abs(d[i0] - junction) < Math.abs(d[i1] - junction);
+    const step = atStart ? -1 : 1;
+    // Walk LEAD_IN metres back into the shared stretch before branching off.
+    let from = atStart ? i0 : i1;
+    for (let back = 0; back < LEAD_IN && from - step >= i0 && from - step <= i1; ) {
+      const q = upper.track[from - step];
+      back += Math.hypot(q[0] - upper.track[from][0], q[1] - upper.track[from][1]);
+      from -= step;
     }
-    const road = rawBranch.landsOn ? sideRoads.get(rawBranch.landsOn.road)! : null;
-    if (road && rawBranch.landsOn) {
-      for (let s = road.junctionS + rawBranch.landsOn.fromJunctionM; s <= road.alignment.length; s += 60) points.push(road.alignment.point(s));
-    } else if (rawBranch.runOn) {
-      // Straight on in the arc's final direction.
-      const endAlong = dir * R * Math.sin(turn);
-      const endLat = R * (1 - Math.cos(turn));
-      const dAlong = dir * Math.cos(turn);
-      const dLat = Math.sin(turn);
-      for (let s = 20; s <= rawBranch.runOn.straightM; s += 20) points.push(at(endAlong + dAlong * s, endLat + dLat * s));
+    const startD = d[from];
+    const raw: Vec2[] = [];
+    let length = 0;
+    for (let i = from; i >= 0 && i < upper.track.length && length <= rawBranch.lengthM; i += step) {
+      const p = { x: upper.track[i][0], z: upper.track[i][1] };
+      if (raw.length) length += Math.hypot(p.x - raw[raw.length - 1].x, p.z - raw[raw.length - 1].z);
+      raw.push(p);
     }
-    const upper = tracks.alignment.railLevelM.value + dd!.upperDeckHeightAboveRailM.value;
+    if (raw.length < 3) return null;
+    const points: Vec2[] = [alignment.point(startD)];
+    let s = 0;
+    for (let k = 1; k < raw.length; k++) {
+      s += Math.hypot(raw[k].x - raw[k - 1].x, raw[k].z - raw[k - 1].z);
+      const w = Math.min(1, s / BLEND);
+      const ease = w * w * (3 - 2 * w);
+      const c = alignment.point(alignment.project(raw[k].x, raw[k].z, startD, BLEND + 400));
+      points.push({ x: c.x + (raw[k].x - c.x) * ease, z: c.z + (raw[k].z - c.z) * ease });
+    }
+    const upperY = tracks.alignment.railLevelM.value + dd!.upperDeckHeightAboveRailM.value;
     const lower = tracks.alignment.railLevelM.value;
     const { fromM, toM } = rawBranch.descent;
-    const railAt = (s: number) => {
-      const u = Math.min(1, Math.max(0, (s - fromM) / (toM - fromM)));
-      return upper + (lower - upper) * (0.5 - 0.5 * Math.cos(Math.PI * u));
+    const railAt = (sd: number) => {
+      const u = Math.min(1, Math.max(0, (sd - fromM) / (toM - fromM)));
+      return upperY + (lower - upperY) * (0.5 - 0.5 * Math.cos(Math.PI * u));
     };
     const branchAlign = new Alignment(points);
-    let landS = branchAlign.length;
-    if (road && rawBranch.landsOn) {
-      const land = road.alignment.point(road.junctionS + rawBranch.landsOn.fromJunctionM);
-      landS = branchAlign.project(land.x, land.z, branchAlign.length / 3, branchAlign.length);
-    }
     return {
       raw: rawBranch,
       end,
       line: data.routes.lines.find((l) => l.id === rawBranch.line) ?? null,
       alignment: branchAlign,
-      junction,
+      junction: startD,
       points,
       railAt,
-      landS,
-      road,
+      landS: branchAlign.length,
+      road: null,
     };
   };
-  if (doubleDecker && dd?.line5West) line5Branches.push(buildBranch(dd.line5West, "west"));
-  if (doubleDecker && dd?.line5East) line5Branches.push(buildBranch(dd.line5East, "east"));
+  for (const [end, rb] of [
+    ["west", dd?.line5West],
+    ["east", dd?.line5East],
+  ] as const) {
+    const b = rb && buildBranch(rb, end);
+    if (b) line5Branches.push(b);
+  }
+  // The upper deck runs exactly to where each branch leaves it.
+  if (doubleDecker) {
+    for (const b of line5Branches) {
+      if (b.end === "west") doubleDecker.upperStart = b.junction;
+      else doubleDecker.upperEnd = b.junction;
+    }
+  }
   const line5Branch = line5Branches.find((b) => b.end === "west") ?? null;
 
   // Neighbourhoods: a stretch either side of their landmark, with a style per side of the road.
@@ -507,23 +611,40 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
   };
   const flyovers: FlyoverModel[] = (tracks.structures.flyovers ?? []).map((raw) => {
     const road = sideRoads.get(raw.road)!;
-    const startS = road.junctionS + raw.fromJunctionM;
-    const endS = road.junctionS + raw.toJunctionM;
+    // Centred on the flyover's span in OpenStreetMap when baked, keeping its published length.
+    const osmSpan = net ? data.network?.roads?.[raw.road]?.features?.[raw.id] : undefined;
+    let fromJ = raw.fromJunctionM;
+    if (osmSpan) fromJ = (osmSpan[0] + osmSpan[1]) / 2 - raw.lengthM.value / 2 - road.junctionS;
+    const startS = road.junctionS + fromJ;
+    const endS = startS + (raw.toJunctionM - raw.fromJunctionM);
     const ramp = raw.rampM.value;
     const crest = raw.crestDeckM.value;
     const halfWidth = raw.widthM.value / 2;
     const heightAt = (s: number) => (s <= startS || s >= endS ? 0 : Math.min(rampHeight(s - startS, ramp, crest), rampHeight(endS - s, ramp, crest)));
-    // Where the deck still overlaps the corridor carriageway (13 m half-width).
-    let corridorTo = road.junctionD;
-    for (let s = road.junctionS; s <= endS; s += 2) {
+    // Where the deck lies within the corridor carriageway (13 m half-width), measured by projection.
+    let corridorFrom = Infinity;
+    let corridorTo = -Infinity;
+    const under: [number, number][] = [];
+    for (let s = startS; s <= endS; s += 2) {
       const p = road.alignment.point(s);
-      const d = alignment.project(p.x, p.z, corridorTo, 200);
+      const d = alignment.project(p.x, p.z, road.junctionD, endS - startS + 400);
       const c = alignment.point(d);
-      if (Math.hypot(p.x - c.x, p.z - c.z) - halfWidth > 13) break;
+      if (Math.hypot(p.x - c.x, p.z - c.z) - halfWidth > 13) continue;
+      corridorFrom = Math.min(corridorFrom, d);
       corridorTo = Math.max(corridorTo, d);
+      under.push([d, heightAt(s)]);
     }
-    const corridorFrom = road.junctionD + raw.fromJunctionM;
-    const corridorHeightAt = (d: number) => (d <= road.junctionD ? heightAt(road.junctionS + (d - road.junctionD)) : 0);
+    if (!under.length) corridorFrom = corridorTo = road.junctionD;
+    under.sort((a, b) => a[0] - b[0]);
+    /** Deck height above the corridor at corridor distance d (0 where it is not over the corridor). */
+    const corridorHeightAt = (d: number) => {
+      if (!under.length || d < under[0][0] || d > under[under.length - 1][0]) return 0;
+      let i = 1;
+      while (i < under.length - 1 && under[i][0] < d) i++;
+      const [d0, h0] = under[i - 1];
+      const [d1, h1] = under[i];
+      return d1 > d0 ? h0 + ((h1 - h0) * (d - d0)) / (d1 - d0) : h0;
+    };
     return { raw, road, startS, endS, halfWidth, crest, heightAt, corridorFrom, corridorTo, corridorHeightAt };
   });
 

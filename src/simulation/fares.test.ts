@@ -6,7 +6,7 @@ import { discountedFare, fareForDistanceKm, fareForJourney } from "./fares.ts";
 import type { DataBundle } from "./types.ts";
 
 const load = (name: string) => JSON.parse(readFileSync(new URL(`../data/${name}.json`, import.meta.url), "utf8"));
-const data: DataBundle = { stations: load("stations"), routes: load("routes"), tracks: load("tracks"), landmarks: load("landmarks") };
+const data: DataBundle = { stations: load("stations"), routes: load("routes"), tracks: load("tracks"), landmarks: load("landmarks"), network: load("network") };
 const route = buildRouteModel(data);
 const fares = route.route.fares;
 const slabs = fares.bands!.slabs;

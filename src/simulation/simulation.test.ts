@@ -14,12 +14,13 @@ const data: DataBundle = {
   routes: load("routes"),
   tracks: load("tracks"),
   landmarks: load("landmarks"),
+  network: load("network"),
 };
 
 test("route model matches published length and station order", () => {
   const route = buildRouteModel(data);
   const modelled = route.endDistance - route.startDistance;
-  // Spline through station coordinates should be within 2 % of 14.64 km.
+  // The real (OpenStreetMap) track between the termini should be within 2 % of the published 14.64 km.
   assert.ok(Math.abs(modelled - 14640) / 14640 < 0.02, `modelled length ${modelled.toFixed(0)} m`);
   assert.equal(route.stations.length, 17);
   assert.equal(route.stops.length, 11);
@@ -173,7 +174,7 @@ test("drawn landmarks resolve onto the route and clear the road", async () => {
   }
   // Published points are honoured: the Vadapalani temple sits north of the line near the terminus.
   const temple = route.placedLandmarks.find((p) => p.landmark.id === "vadapalani-murugan-temple")!;
-  assert.ok(temple.lateral < -150 && temple.lateral > -260);
+  assert.ok(temple.lateral < -150 && temple.lateral > -320, `temple ${temple.lateral.toFixed(0)} m off the line`);
 });
 
 test("a broken landmark produces a readable error", () => {
@@ -185,49 +186,47 @@ test("a broken landmark produces a readable error", () => {
   assert.throws(() => buildRouteModel(noPos), RouteDataError);
 });
 
-test("Line 5 branch peels off the upper deck and lands on Mount–Poonamallee Road", () => {
+/** Lateral offset of a world point from the route alignment (+ right). */
+function lateralOf(route: ReturnType<typeof buildRouteModel>, x: number, z: number, guess: number) {
+  const d = route.alignment.project(x, z, guess, 4000);
+  const c = route.alignment.point(d);
+  const r = route.alignment.right(d);
+  return { d, lateral: (x - c.x) * r.x + (z - c.z) * r.z, northSign: r.z > 0 ? -1 : 1 };
+}
+
+
+test("Line 5 west branch follows the real track south towards Mount–Poonamallee Road", () => {
   const route = buildRouteModel(data);
   const b = route.line5Branch!;
   assert.ok(b, "branch present");
+  assert.equal(b.end, "west");
   const upper = route.params.railLevel + route.params.upperDeckHeight;
-  // Starts on the upper deck's west end, at upper-deck height.
+  // Starts on the upper deck's west end, at upper-deck height, and comes down to normal rail level.
   const p0 = b.alignment.point(0);
   const j = route.alignment.point(b.junction);
   assert.ok(Math.hypot(p0.x - j.x, p0.z - j.z) < 0.5);
+  assert.equal(b.junction, route.doubleDecker!.upperStart);
   assert.equal(b.railAt(0), upper);
   assert.ok(Math.abs(b.railAt(b.alignment.length) - route.params.railLevel) < 1e-6);
   for (let s = 0; s + 1 < b.alignment.length; s += 1) {
     assert.ok(Math.abs(b.railAt(s + 1) - b.railAt(s)) <= 0.03, `gradient at ${s} m`);
   }
-  // After landing it follows Mount–Poonamallee Road.
-  const mp = route.sideRoads.get("mount-poonamallee-road")!;
-  assert.equal(b.road, mp);
-  for (let s = b.landS + 20; s < b.alignment.length - 20; s += 40) {
-    const p = b.alignment.point(s);
-    const rs = mp.alignment.project(p.x, p.z, mp.junctionS + 400, 1200);
-    const q = mp.alignment.point(rs);
-    assert.ok(Math.hypot(p.x - q.x, p.z - q.z) < 6, `off the road at ${s.toFixed(0)} m`);
-  }
-  // It lands east of the MGR flyover, which it does not cross onto.
-  const f = route.flyovers[0];
-  const land = b.alignment.point(b.landS);
-  const landS = mp.alignment.project(land.x, land.z, mp.junctionS + 300, 400);
-  assert.ok(landS > f.endS - 10, "lands beyond the flyover's east end");
+  // Heads south, onto the real Line 5 track (OpenStreetMap).
+  const end = b.alignment.point(b.alignment.length);
+  const { lateral, northSign } = lateralOf(route, end.x, end.z, b.junction);
+  assert.ok(Math.sign(lateral) === -northSign && Math.abs(lateral) > 500, `ends ${lateral.toFixed(0)} m off the corridor`);
+  const l5 = data.network!.lines.find((l) => l.id === "line-5")!;
+  const nearest = Math.min(...l5.track.map(([x, z]) => Math.hypot(x - end.x, z - end.z)));
+  assert.ok(nearest < 6, `branch end is ${nearest.toFixed(1)} m from the Line 5 track`);
 });
 
 test("a malformed Line 5 branch produces a readable error", () => {
   const broken: DataBundle = structuredClone(data);
-  broken.tracks.structures.doubleDecker.line5West!.peelArc.radiusM = -5;
+  broken.tracks.structures.doubleDecker.line5West!.lengthM = -5;
   assert.throws(() => buildRouteModel(broken), RouteDataError);
-  const road: DataBundle = structuredClone(data);
-  road.tracks.structures.doubleDecker.line5West!.landsOn!.road = "nowhere";
-  assert.throws(() => buildRouteModel(road), RouteDataError);
-  // A branch must either land on a road or run on.
-  const nowhere: DataBundle = structuredClone(data);
-  const east = nowhere.tracks.structures.doubleDecker.line5East!;
-  delete east.runOn;
-  delete east.landsOn;
-  assert.throws(() => buildRouteModel(nowhere), RouteDataError);
+  const descent: DataBundle = structuredClone(data);
+  descent.tracks.structures.doubleDecker.line5East!.descent = { fromM: 300, toM: 100, status: "assumed" };
+  assert.throws(() => buildRouteModel(descent), RouteDataError);
 });
 
 test("MGR flyover runs along Mount–Poonamallee Road over Porur Junction", () => {
@@ -237,32 +236,32 @@ test("MGR flyover runs along Mount–Poonamallee Road over Porur Junction", () =
   const mp = f.road;
   const J = route.stationById.get("porur-junction")!.distance;
   assert.equal(mp.raw.id, "mount-poonamallee-road");
-  assert.ok(Math.abs(mp.junctionD - J) < 1e-6);
-  assert.ok(Math.abs(f.endS - f.startS - 505) < 1e-6);
+  // The real road junction (OpenStreetMap) is a little west of the station.
+  assert.ok(mp.junctionD < J && mp.junctionD > J - 250, `junction ${(mp.junctionD - J).toFixed(0)} m from the station`);
+  assert.ok(Math.abs(f.endS - f.startS - 505) < 1e-6, "published 505 m");
   assert.equal(f.heightAt(f.startS), 0);
   assert.equal(f.heightAt(f.endS), 0);
   // Crest over the junction itself.
-  assert.ok(Math.abs(f.heightAt(mp.junctionS) - 6.7) < 1e-9);
+  assert.ok(Math.abs(f.heightAt(mp.junctionS) - 6.7) < 0.05);
   for (let s = f.startS; s < f.endS; s += 0.5) {
     assert.ok(Math.abs(f.heightAt(s + 0.5) - f.heightAt(s)) / 0.5 <= 0.05, `grade at ${s.toFixed(1)}`);
   }
   // West of the junction it lies under the metro; east of it, it veers away from Arcot Road.
-  assert.ok(Math.abs(f.corridorFrom - (J - 200)) < 1e-6);
   const dist = (s: number) => {
     const p = mp.alignment.point(s);
-    const d = route.alignment.project(p.x, p.z, J, 600);
+    const d = route.alignment.project(p.x, p.z, J, 900);
     const c = route.alignment.point(d);
     return Math.hypot(p.x - c.x, p.z - c.z);
   };
-  assert.ok(dist(mp.junctionS - 100) < 1, "shares the corridor west of the junction");
+  assert.ok(dist(mp.junctionS - 100) < 20, "shares the corridor west of the junction");
+  assert.ok(f.corridorFrom < mp.junctionD - 150, "its west ramp is under the metro");
   assert.ok(dist(f.endS) > 100, "well away from the metro at its east end");
-  assert.ok(f.corridorTo - J < 120, "leaves the corridor soon after the junction");
+  assert.ok(f.corridorTo - mp.junctionD < 60, "leaves the corridor at the junction");
   // Between the neighbouring stations, and clear of the Line 5 branch's junction.
   const i = route.stations.findIndex((s) => s.id === "porur-junction");
   assert.ok(f.corridorFrom > route.stations[i - 1].distance + 60);
   assert.ok(!route.line5Branch || f.corridorTo < route.line5Branch.junction);
 });
-
 test("Kundrathur Main Road leaves the junction to the south-west", () => {
   const route = buildRouteModel(data);
   const k = route.sideRoads.get("kundrathur-road")!;
@@ -335,15 +334,18 @@ test("no traffic drives inside the flyover deck or the station concourse", async
 
 test("Line 5 leaves the upper deck smoothly: no kink, no tight curve", () => {
   const route = buildRouteModel(data);
-  const b = route.line5Branch!;
-  const t = route.alignment.tangent(b.junction);
-  const bt = b.alignment.tangent(0.5);
-  const kink = (Math.acos(Math.min(1, -(t.x * bt.x + t.z * bt.z))) * 180) / Math.PI;
-  assert.ok(kink < 2, `kink of ${kink.toFixed(1)} degrees where it leaves the upper deck`);
-  for (let s = 2; s < b.alignment.length - 2; s += 1) {
-    let dh = Math.abs(b.alignment.heading(s + 2) - b.alignment.heading(s - 2));
-    if (dh > Math.PI) dh = 2 * Math.PI - dh;
-    assert.ok(4 / Math.max(dh, 1e-9) > 80, `radius ${(4 / dh).toFixed(0)} m at ${s} m`);
+  for (const b of route.line5Branches) {
+    const t = route.alignment.tangent(b.junction);
+    const bt = b.alignment.tangent(0.5);
+    const dir = b.end === "west" ? -1 : 1;
+    const kink = (Math.acos(Math.min(1, dir * (t.x * bt.x + t.z * bt.z))) * 180) / Math.PI;
+    assert.ok(kink < 2, `${b.end}: kink of ${kink.toFixed(1)} degrees where it leaves the upper deck`);
+    // OpenStreetMap draws some Line 5 bends with few nodes (corners down to ~45 m); nothing tighter.
+    for (let s = 2; s < b.alignment.length - 2; s += 1) {
+      let dh = Math.abs(b.alignment.heading(s + 2) - b.alignment.heading(s - 2));
+      if (dh > Math.PI) dh = 2 * Math.PI - dh;
+      assert.ok(4 / Math.max(dh, 1e-9) > 45, `${b.end}: radius ${(4 / dh).toFixed(0)} m at ${s} m`);
+    }
   }
 });
 
@@ -379,27 +381,11 @@ test("Line 5 east branch curves north off the upper deck towards Virugambakkam",
   const dd = route.doubleDecker!;
   const b = route.line5Branches.find((x) => x.end === "east")!;
   assert.ok(b, "east branch present");
-  // Leaves where the upper deck ends, past Alwarthirunagar, in line with it.
   assert.equal(b.junction, dd.upperEnd);
   assert.ok(dd.upperEnd > dd.end, "upper deck runs on past Alwarthirunagar");
-  const t = route.alignment.tangent(b.junction);
-  const bt = b.alignment.tangent(0.5);
-  const kink = (Math.acos(Math.min(1, t.x * bt.x + t.z * bt.z)) * 180) / Math.PI;
-  assert.ok(kink < 2, `kink of ${kink.toFixed(1)} degrees`);
-  // Turns to the north side (towards Virugambakkam).
   const end = b.alignment.point(b.alignment.length);
-  const d = route.alignment.project(end.x, end.z, b.junction, 3000);
-  const c = route.alignment.point(d);
-  const r = route.alignment.right(d);
-  const lateral = (end.x - c.x) * r.x + (end.z - c.z) * r.z;
-  const northSign = r.z > 0 ? -1 : 1;
+  const { lateral, northSign } = lateralOf(route, end.x, end.z, b.junction);
   assert.ok(Math.sign(lateral) === northSign && Math.abs(lateral) > 500, `ends ${lateral.toFixed(0)} m off the corridor`);
-  // A wide curve (110 m design radius; the spline through it dips a little at its very start).
-  for (let s = 2; s < b.alignment.length - 2; s += 1) {
-    let dh = Math.abs(b.alignment.heading(s + 2) - b.alignment.heading(s - 2));
-    if (dh > Math.PI) dh = 2 * Math.PI - dh;
-    assert.ok(4 / Math.max(dh, 1e-9) > 90, `radius ${(4 / dh).toFixed(0)} m at ${s} m`);
-  }
   // Comes down from the upper deck to normal elevated rail level, never climbing.
   assert.equal(b.railAt(0), route.params.railLevel + route.params.upperDeckHeight);
   assert.ok(Math.abs(b.railAt(b.alignment.length) - route.params.railLevel) < 1e-6);
@@ -408,10 +394,7 @@ test("Line 5 east branch curves north off the upper deck towards Virugambakkam",
   for (const f of landmarkFootprints(route)) {
     for (let s = 0; s <= b.alignment.length; s += 5) {
       const p = b.alignment.point(s);
-      const pd = route.alignment.project(p.x, p.z, f.distance, 2000);
-      const pc = route.alignment.point(pd);
-      const pr = route.alignment.right(pd);
-      const pl = (p.x - pc.x) * pr.x + (p.z - pc.z) * pr.z;
+      const { d: pd, lateral: pl } = lateralOf(route, p.x, p.z, f.distance);
       const inside = Math.abs(pd - f.distance) < f.along / 2 + 6 && Math.abs(pl - f.lateral) < f.depth / 2 + 6;
       assert.ok(!inside, `branch at ${s} m runs through ${f.placement.landmark.id}`);
     }
@@ -429,9 +412,17 @@ test("Chandra Metro Mall sits between Alwarthirunagar and Saligramam, on the sid
   const north = route.alignment.right(f.distance).z > 0 ? f.lateral < 0 : f.lateral > 0;
   assert.ok(north, "north side, towards Virugambakkam");
   assert.ok(Math.abs(f.lateral) - f.depth / 2 >= BUILDING_SETBACK, "clear of the road");
-  // The Line 5 curve leaves the road just past it (Vadapalani side), as in the satellite view.
+  // Line 5 parts from Arcot Road just past it (Vadapalani side), as in the satellite view.
   const east = route.line5Branches.find((x) => x.end === "east")!;
-  assert.ok(east.junction > f.distance + f.along / 2 && east.junction < f.distance + 250);
+  let parts = -1;
+  for (let sd = 0; sd < east.alignment.length; sd += 2) {
+    const p = east.alignment.point(sd);
+    if (Math.abs(lateralOf(route, p.x, p.z, east.junction).lateral) > 20) {
+      parts = lateralOf(route, p.x, p.z, east.junction).d;
+      break;
+    }
+  }
+  assert.ok(parts > f.distance + f.along / 2 && parts < f.distance + 250, `Line 5 parts ${(parts - f.distance).toFixed(0)} m past the mall`);
 });
 
 test("a neighbourhood around an unknown landmark produces a readable error", () => {

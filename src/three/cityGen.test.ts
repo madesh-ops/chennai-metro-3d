@@ -7,7 +7,7 @@ import { generateCityChunk, type InstanceSet } from "./cityGen.ts";
 import { landmarkFootprints } from "./landmarkLayout.ts";
 
 const json = (name: string) => JSON.parse(readFileSync(new URL(`../data/${name}.json`, import.meta.url), "utf8"));
-const data = { stations: json("stations"), routes: json("routes"), tracks: json("tracks"), landmarks: json("landmarks") } as DataBundle;
+const data = { stations: json("stations"), routes: json("routes"), tracks: json("tracks"), landmarks: json("landmarks"), network: json("network") } as DataBundle;
 const route = buildRouteModel(data);
 const zone = route.neighbourhoods.find((n) => n.raw.id === "virugambakkam")!;
 

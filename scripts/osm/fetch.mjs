@@ -8,9 +8,11 @@
  *
  * Add --refresh to ignore the cache. Data © OpenStreetMap contributors, ODbL 1.0.
  */
-import { overpass } from "./overpass.mjs";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { CACHE_DIR, overpass } from "./overpass.mjs";
 import { LINES } from "./lines.mjs";
-import { tileList } from "./tiles.mjs";
+import { TILE_M, tileList, toLocal } from "./tiles.mjs";
 
 const args = new Set(process.argv.slice(2));
 const refresh = args.has("--refresh");
@@ -42,19 +44,40 @@ async function fetchNetwork() {
 }
 
 async function fetchTiles() {
-  const tiles = await tileList();
+  const all = await tileList();
+  // Line 4 (the line people ride today) first, nearest Porur Junction outward; then the rest.
+  const [px, pz] = toLocal(13.0355, 80.1563);
+  const centre = (t) => [(t.tx + 0.5) * TILE_M, (t.tz + 0.5) * TILE_M];
+  const tiles = [...all].sort((a, b) => Math.hypot(...centre(a).map((v, i) => v - [px, pz][i])) - Math.hypot(...centre(b).map((v, i) => v - [px, pz][i])));
   console.log(`${tiles.length} tiles`);
-  let i = 0;
-  for (const t of tiles) {
-    i++;
+  const query = (t) => {
     const bbox = `${t.south},${t.west},${t.north},${t.east}`;
-    process.stdout.write(`tile ${i}/${tiles.length} ${t.key}\n`);
-    await overpass(
-      `tile-${t.key}`,
-      `[out:json][timeout:180];(way["building"](${bbox});relation["building"](${bbox});way["highway"](${bbox});way["natural"="water"](${bbox});relation["natural"="water"](${bbox});way["landuse"~"^(grass|recreation_ground|cemetery|reservoir|basin)$"](${bbox});way["leisure"~"^(park|garden|pitch|playground)$"](${bbox});node["natural"="tree"](${bbox}););out tags geom;`,
-      { refresh },
-    );
+    return `[out:json][timeout:180];(way["building"](${bbox});relation["building"](${bbox});way["highway"](${bbox});way["natural"="water"](${bbox});relation["natural"="water"](${bbox});way["landuse"~"^(grass|recreation_ground|cemetery|reservoir|basin)$"](${bbox});way["leisure"~"^(park|garden|pitch|playground)$"](${bbox});node["natural"="tree"](${bbox}););out tags geom;`;
+  };
+  // Several passes: a busy server fails some tiles; they are retried after the rest (cached ones are skipped).
+  let pending = tiles;
+  for (let pass = 1; pass <= 8 && pending.length; pass++) {
+    const failed = [];
+    let i = 0;
+    for (const t of pending) {
+      i++;
+      try {
+        const cached = existsSync(path.join(CACHE_DIR, `tile-${t.key}.json`));
+        await overpass(`tile-${t.key}`, query(t), { refresh, attempts: 3 });
+        console.log(`pass ${pass} tile ${i}/${pending.length} ${t.key}${cached ? " (cached)" : ""}`);
+        if (!cached) await new Promise((r) => setTimeout(r, 1500)); // be polite between downloads
+      } catch (e) {
+        console.warn(`pass ${pass} tile ${t.key} failed: ${e.message}`);
+        failed.push(t);
+      }
+    }
+    pending = failed;
+    if (pending.length) {
+      console.log(`${pending.length} tiles left after pass ${pass}; pausing before the next pass`);
+      await new Promise((r) => setTimeout(r, 120_000));
+    }
   }
+  if (pending.length) throw new Error(`${pending.length} tiles could not be fetched; run again later`);
 }
 
 if (what === "network" || what === "all") await fetchNetwork();

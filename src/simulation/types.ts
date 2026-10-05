@@ -1,8 +1,9 @@
+import type { LatLon } from "../utils/coordinates.ts";
 /* ------------------------------------------------------------------------ */
 /* Raw data shapes (mirrors src/data/*.json)                                 */
 /* ------------------------------------------------------------------------ */
 
-export type CoordinateQuality = "station" | "bus-stop" | "locality" | "interpolated";
+export type CoordinateQuality = "osm" | "station" | "bus-stop" | "locality" | "interpolated";
 
 export interface RawStation {
   id: string;
@@ -16,6 +17,8 @@ export interface RawStation {
   interchange?: string[];
   coordinates: { lat: number; lon: number; quality: CoordinateQuality; source: string } | null;
   placement?: { between: [string, string]; fraction: number; quality: CoordinateQuality };
+  /** Name of this station in network.json (OpenStreetMap), when it differs from `name`. */
+  osmName?: string;
   notes: string;
 }
 
@@ -74,7 +77,10 @@ export interface RawSideRoad {
   atStation: string;
   westM: number;
   widthM: number;
+  /** Traced fallback path ([along, south] metres from the station) when network.json has no OSM road. */
   path: [number, number][];
+  /** How the bake finds this road in OpenStreetMap (scripts/osm/bake-network.mjs). */
+  osm?: { names: string[]; heading: [number, number]; lengthM: number; features?: Record<string, string> };
   status: string;
   source: string;
 }
@@ -94,22 +100,15 @@ export interface RawNeighbourhood {
   source: string;
 }
 
-/** A viaduct branching off the corridor, peeling away and landing on a side road or running on. */
+/**
+ * The upper-deck line leaving one end of the double-decker. Its path is the
+ * real track from network.json (where it parts from the lower line); this
+ * only says how much of it to draw and how it comes down.
+ */
 export interface RawBranch {
   line: string;
-  /**
-   * Leaves the double-decker on a circular arc: starts heading away from the
-   * double-decker along the corridor (back towards the route start at the west
-   * end, onwards at the east end) and turns towards `side` by turnDeg.
-   */
-  peelArc: { radiusM: number; turnDeg: number; note?: string };
-  side: "north" | "south";
-  /** Then follows this side road from the given distance past its junction… */
-  landsOn?: { road: string; fromJunctionM: number };
-  /** …or runs straight on in the arc's final direction for this many metres. */
-  runOn?: { straightM: number };
-  /** Where it leaves, measured past the double-decker's end station (default: the usual 160 m overhang). */
-  leavesPastStationM?: number;
+  /** How much of the branch to draw beyond the junction (m). */
+  lengthM: number;
   /** Rail height falls from the upper deck to normal rail level between these branch distances. */
   descent: { fromM: number; toM: number; status: string };
   /** Street beneath the peel-away curve. */
@@ -275,11 +274,54 @@ export interface RawLandmarksFile {
   landmarks: RawLandmark[];
 }
 
+/** OpenStreetMap-baked network (src/data/network.json, scripts/osm/bake-network.mjs). */
+export interface RawNetworkStation {
+  osmId: number;
+  name: string;
+  nameTa: string | null;
+  lat: number;
+  lon: number;
+  /** Distance along the baked track (m). */
+  d: number;
+  offsetM: number;
+  underConstruction: boolean;
+  entrances: [number, number][];
+}
+
+export interface RawNetworkLine {
+  id: string;
+  name: string;
+  colourName: string;
+  osmColour: string | null;
+  lengthM: number;
+  /** Track centreline in the shared city projection, [x, z] metres. */
+  track: [number, number][];
+  /** [fromM, toM, kind, layer] runs along the track. */
+  structure: [number, number, "elevated" | "underground" | "at-grade", number][];
+  stations: RawNetworkStation[];
+}
+
+/** A side road walked from OpenStreetMap (sideRoads[].osm in tracks.json). */
+export interface RawNetworkRoad {
+  points: [number, number][];
+  lengthM: number;
+  /** [fromS, toS] spans of named features along the road (e.g. "mgr-flyover"). */
+  features: Record<string, [number, number]>;
+}
+
+export interface RawNetwork {
+  meta: { source: string; licence: string; snapshot: string; origin: LatLon; projection: string; note: string };
+  lines: RawNetworkLine[];
+  roads?: Record<string, RawNetworkRoad>;
+}
+
 export interface DataBundle {
   stations: RawStationsFile;
   routes: RawRoutesFile;
   tracks: RawTracksFile;
   landmarks: RawLandmarksFile;
+  /** Real track and station positions; without it, routes fall back to a spline through station coordinates. */
+  network?: RawNetwork;
 }
 
 /* ------------------------------------------------------------------------ */

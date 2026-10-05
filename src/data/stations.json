@@ -54,7 +54,8 @@
         "quality": "bus-stop",
         "source": "mtc-gtfs"
       },
-      "notes": "Referred to as Poonamallee Bus Stand in CMRL's fare announcement."
+      "notes": "Referred to as Poonamallee Bus Stand in CMRL's fare announcement.",
+      "osmName": "Poonamallee Bus Stand"
     },
     {
       "id": "mullaithottam",
@@ -72,7 +73,8 @@
         "quality": "station",
         "source": "wiki-stations"
       },
-      "notes": "On Trunk Road, Poonamallee."
+      "notes": "On Trunk Road, Poonamallee.",
+      "osmName": "Poonamallee Government Hospital"
     },
     {
       "id": "karayanchavadi",
@@ -136,7 +138,8 @@
         "quality": "locality",
         "source": "wiki-localities"
       },
-      "notes": ""
+      "notes": "",
+      "osmName": "Iyappanthangal"
     },
     {
       "id": "thelliyaragaram",
@@ -263,6 +266,28 @@
       "notes": "Eastern end of the 3.75 km double-decker stretch. Trains pass without stopping at opening."
     },
     {
+      "id": "avichi-school",
+      "name": "Avichi School",
+      "nameTa": null,
+      "nameTaVerified": false,
+      "altNames": [
+        "Virugambakkam South"
+      ],
+      "type": "elevated",
+      "service": "pass",
+      "coordinates": null,
+      "placement": {
+        "between": [
+          "porur-junction",
+          "vadapalani"
+        ],
+        "fraction": 0.9,
+        "quality": "interpolated"
+      },
+      "notes": "Called Avichi School in the opening reports; Wikipedia and OpenStreetMap list it as Virugambakkam South, between Alwarthirunagar and Saligramam. Trains pass without stopping at opening.",
+      "osmName": "Virugambakkam South"
+    },
+    {
       "id": "saligramam",
       "name": "Saligramam",
       "nameTa": "சாலிகிராமம்",
@@ -280,25 +305,6 @@
         "quality": "interpolated"
       },
       "notes": "Reported as not ready at opening; trains pass without stopping."
-    },
-    {
-      "id": "avichi-school",
-      "name": "Avichi School",
-      "nameTa": null,
-      "nameTaVerified": false,
-      "altNames": [],
-      "type": "elevated",
-      "service": "pass",
-      "coordinates": null,
-      "placement": {
-        "between": [
-          "porur-junction",
-          "vadapalani"
-        ],
-        "fraction": 0.9,
-        "quality": "interpolated"
-      },
-      "notes": "Name as listed by NativePlanet. One trial-run report lists 'Virugambakkam South' in this slot instead; unresolved."
     },
     {
       "id": "vadapalani",

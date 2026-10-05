@@ -252,13 +252,12 @@
         "height": 33
       },
       "position": {
-        "station": "alwarthirunagar",
-        "alongM": 357,
-        "side": "north",
-        "offsetM": 60
+        "lat": 13.046805,
+        "lon": 80.190419,
+        "side": "north"
       },
       "positionQuality": "approximate",
-      "positionSource": "Between Alwarthirunagar and Saligramam, on the side Line 5 turns off towards Virugambakkam, per the project owner and their satellite view (placed midway between the two stations). The Mappls coordinate projects about 420 m west of Alwarthirunagar on the modelled alignment, which runs straight between interpolated stations here."
+      "positionSource": "Mappls — 262 Arcot Road, Virugambakkam (13.046805, 80.190419), on the real (OpenStreetMap) Line 4 track: north side, between Alwarthirunagar and Avichi School (Virugambakkam South), about 140 m before Line 5 turns north — matching the project owner's satellite view."
     },
     {
       "id": "vadapalani-murugan-temple",

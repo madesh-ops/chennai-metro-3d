@@ -257,6 +257,145 @@ const isMetro = (tags = {}) =>
 
 const englishName = (tags) => tags["name:en"] ?? (/[a-z]/i.test(tags.name ?? "") ? tags.name : null) ?? tags.name;
 
+/**
+ * Side roads named in tracks.json (`sideRoads[].osm`): walk the named OSM road
+ * away from its junction station in the given heading, for lengthM metres.
+ * Returns local [x, z] points every ~10 m, plus [s0, s1] spans of named features
+ * along it (e.g. the MGR flyover).
+ */
+async function bakeRoads(lineStations) {
+  const tracksJson = JSON.parse(await readFile(path.resolve("src/data/tracks.json"), "utf8"));
+  const specs = (tracksJson.structures.sideRoads ?? []).filter((r) => r.osm);
+  const out = {};
+  if (!specs.length) return out;
+  const { tileList } = await import("./tiles.mjs");
+  const tiles = await tileList();
+  for (const spec of specs) {
+    const st = lineStations.get(spec.atStation);
+    if (!st) throw new Error(`side road ${spec.id}: station ${spec.atStation} not found`);
+    const [sx, sz] = toLocal(st.lat, st.lon);
+    const names = new Set(spec.osm.names);
+    // Ways of those names in tiles within 3 km.
+    const ways = [];
+    for (const t of tiles) {
+      const cx = (t.tx + 0.5) * 1000;
+      const cz = (t.tz + 0.5) * 1000;
+      if (Math.hypot(cx - sx, cz - sz) > 3800) continue;
+      let data;
+      try {
+        data = await load(`tile-${t.key}`);
+      } catch {
+        continue;
+      }
+      for (const e of data.elements) if (e.type === "way" && names.has(e.tags?.name)) ways.push(e);
+    }
+    const seen = new Set();
+    const uniq = ways.filter((w) => !seen.has(w.id) && seen.add(w.id));
+    // Graph by shared coordinates; each edge remembers its way's name.
+    const verts = new Map();
+    const vert = (g) => {
+      const k = key(g.lat, g.lon);
+      let v = verts.get(k);
+      if (!v) {
+        const [x, z] = toLocal(g.lat, g.lon);
+        verts.set(k, (v = { x, z, edges: [] }));
+      }
+      return v;
+    };
+    for (const w of uniq) {
+      for (let i = 1; i < w.geometry.length; i++) {
+        const a = vert(w.geometry[i - 1]);
+        const b = vert(w.geometry[i]);
+        a.edges.push({ to: b, name: w.tags.name });
+        b.edges.push({ to: a, name: w.tags.name });
+      }
+    }
+    // Start on the main road or a named feature, not a parallel service road.
+    const mainNames = new Set([spec.osm.names[0], ...Object.values(spec.osm.features ?? {})]);
+    let v = null;
+    let best = Infinity;
+    for (const c of verts.values()) {
+      if (!c.edges.some((e) => mainNames.has(e.name))) continue;
+      const d = Math.hypot(c.x - sx, c.z - sz);
+      if (d < best) {
+        best = d;
+        v = c;
+      }
+    }
+    if (!v || best > 400) throw new Error(`side road ${spec.id}: no ${spec.osm.names[0]} within 400 m of ${spec.atStation}`);
+    const featureNames = new Set(Object.values(spec.osm.features ?? {}));
+    // Greedy walk along a heading from vertex v0, never turning back; returns points after v0.
+    const walk = (v0, h0x, h0z, maxLen, visited) => {
+      let hx = h0x;
+      let hz = h0z;
+      const hl = Math.hypot(hx, hz);
+      hx /= hl;
+      hz /= hl;
+      const out = [];
+      let at = v0;
+      let length = 0;
+      while (length < maxLen) {
+        let next = null;
+        let score = 0.35;
+        for (const e of at.edges) {
+          if (visited.has(e.to)) continue;
+          const dx = e.to.x - at.x;
+          const dz = e.to.z - at.z;
+          const l = Math.hypot(dx, dz) || 1;
+          // Prefer the named features (the flyover over the service road beneath it).
+          const bonus = featureNames.has(e.name) ? 0.25 : 0;
+          const dot = (dx * hx + dz * hz) / l + bonus;
+          if (dot > score) {
+            score = dot;
+            next = e;
+          }
+        }
+        if (!next) break;
+        const dx = next.to.x - at.x;
+        const dz = next.to.z - at.z;
+        const l = Math.hypot(dx, dz) || 1;
+        length += l;
+        hx = 0.75 * hx + 0.25 * (dx / l);
+        hz = 0.75 * hz + 0.25 * (dz / l);
+        const hn = Math.hypot(hx, hz);
+        hx /= hn;
+        hz /= hn;
+        at = next.to;
+        visited.add(at);
+        out.push({ x: at.x, z: at.z, name: next.name });
+      }
+      return out;
+    };
+    // Back along the road (under the metro, before the junction), then forward along the heading.
+    const visited = new Set([v]);
+    const back = walk(v, -spec.osm.heading[0], -spec.osm.heading[1], (spec.westM ?? 0) + 150, visited);
+    const fwd = walk(v, spec.osm.heading[0], spec.osm.heading[1], spec.osm.lengthM, visited);
+    // Points in road order; each point's `name` is the name of the edge arriving at it.
+    const backPts = back.reverse();
+    const pts = [];
+    for (let i = 0; i < backPts.length; i++) pts.push({ x: backPts[i].x, z: backPts[i].z, name: i > 0 ? backPts[i - 1].name : null });
+    pts.push({ x: v.x, z: v.z, name: backPts.length ? backPts[backPts.length - 1].name : null });
+    for (const p of fwd) pts.push(p);
+    let length = 0;
+    for (let i = 1; i < pts.length; i++) length += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+    // Resample every 10 m with names, then features as spans of matching names.
+    const sts = pts.slice(1).map((p) => ({ name: p.name }));
+    const samples = resample(pts, sts.length ? sts : [{ name: null }], 10);
+    const features = {};
+    for (const [fid, fname] of Object.entries(spec.osm.features ?? {})) {
+      const on = samples.filter((p) => p.st?.name === fname);
+      if (on.length) features[fid] = [Math.round(on[0].d), Math.round(on[on.length - 1].d)];
+    }
+    out[spec.id] = {
+      points: samples.map((p) => [Math.round(p.x * 10) / 10, Math.round(p.z * 10) / 10]),
+      lengthM: Math.round(samples[samples.length - 1].d),
+      features,
+    };
+    console.log(`road ${spec.id}: ${(length / 1000).toFixed(2)} km from ${uniq.length} ways, features ${JSON.stringify(features)}`);
+  }
+  return out;
+}
+
 async function main() {
   const trackWays = (await load("track-ways")).elements.filter((e) => e.type === "way" && e.geometry);
   const stationEls = (await load("stations")).elements;
@@ -363,6 +502,18 @@ async function main() {
     );
   }
 
+  // Stations by curated id, for side roads (curated stations match by osmName / name).
+  const curated = JSON.parse(await readFile(path.resolve("src/data/stations.json"), "utf8")).stations;
+  const norm = (n) => n.toLowerCase().replace(/\s+metro$/, "").replace(/[^a-z0-9]+/g, " ").trim();
+  const byId = new Map();
+  for (const c of curated) {
+    for (const l of lines) {
+      const hit = l.stations.find((n) => norm(n.name) === norm(c.osmName ?? c.name));
+      if (hit) byId.set(c.id, hit);
+    }
+  }
+  const roads = await bakeRoads(byId);
+
   const out = {
     meta: {
       source: "OpenStreetMap (route relations, railway ways tagged bridge/tunnel/layer, station and entrance nodes)",
@@ -373,6 +524,7 @@ async function main() {
       note: "Generated by scripts/osm/bake-network.mjs — do not edit by hand. Curated facts (service, fares, speeds) live in stations.json / routes.json / tracks.json.",
     },
     lines,
+    roads,
   };
   const file = path.resolve("src/data/network.json");
   await writeFile(file, JSON.stringify(out) + "\n");

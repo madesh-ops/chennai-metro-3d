@@ -77,7 +77,7 @@ test("a run shorter than both clips goes straight from departure to braking", ()
 
 test("works on a real journey: every run starts, cruises and stops", () => {
   const load = (n: string) => JSON.parse(readFileSync(new URL(`../data/${n}.json`, import.meta.url), "utf8"));
-  const data: DataBundle = { stations: load("stations"), routes: load("routes"), tracks: load("tracks"), landmarks: load("landmarks") };
+  const data: DataBundle = { stations: load("stations"), routes: load("routes"), tracks: load("tracks"), landmarks: load("landmarks"), network: load("network") };
   const route = buildRouteModel(data);
   const traj = simulateJourney(planJourney(route, "poonamallee-bypass", "vadapalani"), route.operations);
   for (let k = 0; k < traj.stops.length - 1; k++) {

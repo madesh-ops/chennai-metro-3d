@@ -57,27 +57,23 @@ export function placeVehicle(route: RouteModel, v: TrafficVehicle, range: [numbe
   } else {
     route.alignment.offsetPoint(v.s, lateral, pt);
     yaw = route.alignment.heading(v.s);
-    if (v.lane < FLYOVER_LANES) {
-      for (const f of route.flyovers) {
-        if (v.s >= f.corridorFrom && v.s <= f.road.junctionD) {
-          h = f.corridorHeightAt(v.s);
-          grade = (f.corridorHeightAt(v.s + 1) - f.corridorHeightAt(v.s - 1)) / 2;
-        } else if (v.s > f.road.junctionD && v.s <= f.corridorTo + 8) {
-          // The deck veers away along Mount–Poonamallee Road here; through traffic is on it.
-          visible = false;
-        }
-      }
-    }
-    // Where the flyover veers across the outer lane just past the junction, at-grade traffic
-    // there would be inside its deck (vehicles riding the deck have h > 0 and are left alone).
-    if (visible && h === 0) {
-      for (const f of route.flyovers) {
-        if (v.s < f.road.junctionD - 10 || v.s > f.corridorTo + 80) continue;
-        const road = f.road.alignment;
-        const s = road.project(pt.x, pt.z, f.road.junctionS + (v.s - f.road.junctionD), 150);
-        if (s <= f.startS || s >= f.endS || f.heightAt(s) < 0.2) continue;
-        const q = road.point(s);
-        if (Math.hypot(pt.x - q.x, pt.z - q.z) < f.halfWidth + 1.3) visible = false;
+    // Near a flyover, find the deck point under/over this vehicle. Inner lanes before the
+    // junction ride up onto it (through traffic); anything else that would sit inside the deck
+    // is hidden (the deck veers across the outer lanes or away along its own road).
+    for (const f of route.flyovers) {
+      if (v.s < f.corridorFrom - 10 || v.s > f.corridorTo + 80) continue;
+      const road = f.road.alignment;
+      const s = road.project(pt.x, pt.z, f.road.junctionS + (v.s - f.road.junctionD), 400);
+      if (s <= f.startS || s >= f.endS) continue;
+      const deck = f.heightAt(s);
+      const q = road.point(s);
+      const onDeck = Math.hypot(pt.x - q.x, pt.z - q.z) < f.halfWidth + 1.3;
+      if (!onDeck || deck < 0.2) continue;
+      if (v.lane < FLYOVER_LANES && v.s <= f.road.junctionD) {
+        h = deck;
+        grade = (f.heightAt(s + 1) - f.heightAt(s - 1)) / 2;
+      } else {
+        visible = false;
       }
     }
     // The road ends with the scenery.

@@ -12,7 +12,11 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 export const CACHE_DIR = path.resolve("data-cache/osm");
-const ENDPOINTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+const ENDPOINTS = [
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+];
 const USER_AGENT = "chennai-metro-3d/0.2 (https://github.com/madesh-ops/chennai-metro-3d; data bake)";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
