@@ -437,7 +437,7 @@ export function buildTileGeometry(tile: TileData, opts: BuildOptions): TileGeome
     const m = Math.floor(r.line.length / 4) * 2;
     return !own(r.line[m], r.line[m + 1]);
   });
-  const structures = buildRaised(built);
+  const structures = buildRaised(built, ground);
   const out: TileGeometry = {
     buildings,
     decks: structures.deck,
@@ -655,16 +655,19 @@ class Solid {
  * with hammerhead caps under the high spans, and crash barriers both sides
  * (uv mapped for the black-and-white chevron texture).
  */
-export function buildRaised(raised: TileRoad[]): { deck: BufferGeometry | null; barriers: BufferGeometry | null } {
+export function buildRaised(raised: TileRoad[], ground: TileRoad[] = []): { deck: BufferGeometry | null; barriers: BufferGeometry | null } {
   const deck = new Solid();
   const bars = new Solid();
-  for (const r of raised) {
+  const covered = roadCover([...raised, ...ground]);
+  raised.forEach((r, index) => {
     const line = r.line;
     const h = r.heights!;
     const n = h.length;
-    if (n < 2) continue;
+    if (n < 2) return;
     const half = r.width / 2 + SHOULDER;
     const surface = ROAD_COLOUR[Math.min(r.cls, 3)];
+    // Decks meeting at a merge overlap: a millimetre-scale step per road stops their surfaces flickering.
+    const lift = (index % 5) * 0.012;
     // Mitred offsets per point (as the flat ribbon).
     const off: [number, number][] = [];
     const seg = (a: number, b: number): [number, number] => {
@@ -699,15 +702,37 @@ export function buildRaised(raised: TileRoad[]): { deck: BufferGeometry | null; 
       const uz = (line[j * 2 + 1] - line[i * 2 + 1]) / len;
       const nx = uz;
       const nz = -ux;
-      const yi = h[i] + 0.04;
-      const yj = h[j] + 0.04;
+      const yi = h[i] + 0.04 + lift;
+      const yj = h[j] + 0.04 + lift;
+      // Where this edge runs over another road at about the same height (a merge, or a ramp
+      // touching down onto a street), there is no wall or barrier: the roads join there.
+      const mid = (lat: number): [number, number] => [
+        (line[i * 2] + line[j * 2]) / 2 + ((off[i][0] + off[j][0]) / 2) * lat,
+        (line[i * 2 + 1] + line[j * 2 + 1]) / 2 + ((off[i][1] + off[j][1]) / 2) * lat,
+      ];
+      const yMid = (h[i] + h[j]) / 2;
+      const open = (s: number) => {
+        const [x, z] = mid(s * (half - BARRIER_T / 2));
+        return covered(x, z, yMid, r);
+      };
+      // An embankment wall cannot stand on a road below it: carry the deck over on its soffit there.
+      const overRoad = (s: number) => {
+        const [x, z] = mid(s * half);
+        return covered(x, z, yMid, r, true);
+      };
       // Road surface.
       deck.quad([P(i, -half, yi), P(j, -half, yj), P(j, half, yj), P(i, half, yi)], [0, 1, 0], surface);
       // Fascia / embankment walls, and the soffit where the deck is on piers.
+      let soffit = bottom(i) > 0 && bottom(j) > 0;
       for (const s of [-1, 1]) {
-        deck.quad([P(i, s * half, bottom(i)), P(j, s * half, bottom(j)), P(j, s * half, yj), P(i, s * half, yi)], [nx * s, 0, nz * s], h[i] >= ON_PIERS ? CONCRETE : RE_WALL);
+        if (open(s)) continue;
+        const wallOverRoad = !soffit && overRoad(s);
+        const b0 = wallOverRoad ? Math.max(0, h[i] - DECK_DEPTH) : bottom(i);
+        const b1 = wallOverRoad ? Math.max(0, h[j] - DECK_DEPTH) : bottom(j);
+        if (wallOverRoad) soffit = true;
+        deck.quad([P(i, s * half, b0), P(j, s * half, b1), P(j, s * half, yj), P(i, s * half, yi)], [nx * s, 0, nz * s], h[i] >= ON_PIERS ? CONCRETE : RE_WALL);
       }
-      if (bottom(i) > 0 && bottom(j) > 0) {
+      if (soffit) {
         deck.quad([P(i, -half, bottom(i)), P(j, -half, bottom(j)), P(j, half, bottom(j)), P(i, half, bottom(i))], [0, -1, 0], CONCRETE_DARK);
       }
       // Lane lines: dashed between lanes, solid at the edges.
@@ -728,6 +753,7 @@ export function buildRaised(raised: TileRoad[]): { deck: BufferGeometry | null; 
       const u0 = along / 1.2;
       const u1 = (along + len) / 1.2;
       for (const s of [-1, 1]) {
+        if (open(s)) continue;
         const inner = s * (half - BARRIER_T);
         const outer = s * half;
         for (const [lat, dir] of [
@@ -764,6 +790,51 @@ export function buildRaised(raised: TileRoad[]): { deck: BufferGeometry | null; 
       }
       along += len;
     }
-  }
+  });
   return { deck: deck.geometry(), barriers: bars.geometry(true) };
+}
+
+/**
+ * Lookup over road footprints with their surface heights: is (x, z) on
+ * another road whose surface is within 1.5 m of y (or, with `below`, a road
+ * well beneath y)?
+ */
+function roadCover(roads: TileRoad[]) {
+  const CELL = 40;
+  const grid = new Map<number, { r: TileRoad; k: number }[]>();
+  const cellKey = (i: number, j: number) => i * 100003 + j;
+  for (const r of roads) {
+    const l = r.line;
+    for (let k = 0; k + 3 < l.length; k += 2) {
+      const reach = r.width / 2 + SHOULDER;
+      const x0 = Math.min(l[k], l[k + 2]) - reach;
+      const x1 = Math.max(l[k], l[k + 2]) + reach;
+      const z0 = Math.min(l[k + 1], l[k + 3]) - reach;
+      const z1 = Math.max(l[k + 1], l[k + 3]) + reach;
+      for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) {
+        for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) {
+          let c = grid.get(cellKey(i, j));
+          if (!c) grid.set(cellKey(i, j), (c = []));
+          c.push({ r, k });
+        }
+      }
+    }
+  }
+  return (x: number, z: number, y: number, self: TileRoad, below = false): boolean => {
+    for (const { r, k } of grid.get(cellKey(Math.floor(x / CELL), Math.floor(z / CELL))) ?? []) {
+      if (r === self) continue;
+      const l = r.line;
+      const ax = l[k];
+      const az = l[k + 1];
+      const dx = l[k + 2] - ax;
+      const dz = l[k + 3] - az;
+      const l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      const d = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+      if (d > r.width / 2 + (r.heights ? SHOULDER : 0) - 0.2) continue;
+      const hy = r.heights ? r.heights[k / 2] + (r.heights[k / 2 + 1] - r.heights[k / 2]) * t : 0;
+      if (below ? hy < y - 2.5 : Math.abs(hy - y) < 1.5) return true;
+    }
+    return false;
+  };
 }

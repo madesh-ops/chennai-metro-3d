@@ -856,103 +856,211 @@ const RAMP_GRADE = 0.04;
 
 /**
  * Height of every point of every road, keyed by road id (only roads with a
- * raised point are returned). A bridge counts as a flyover when it crosses
- * another road, or joins a bridge that is one (the loops of an interchange);
- * other bridges (over canals) stay on the ground. Flyover points sit at the
- * deck height of their layer; from there the connected roads ramp down at
- * RAMP_GRADE until they meet the ground.
+ * raised point are returned).
+ *
+ * A bridge needs its deck height only where it crosses a road on the ground.
+ * From each crossing the deck falls away at RAMP_GRADE along the bridge and
+ * on along the road that carries straight on (slip roads stay on slip roads,
+ * main roads on main roads); slip roads leaving a raised deck (the loops of a
+ * cloverleaf) descend from it along their own length. Where a walk runs out
+ * of road before reaching the ground, its slope is regraded to land at the
+ * end. Bridges that cross nothing (over canals) stay on the ground.
  */
 function roadHeights(roads) {
   const key = (p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`;
   const isBridge = (t) => t.bridge && t.bridge !== "no" && !(t.tunnel && t.tunnel !== "no");
   const layerOf = (t) => Math.max(0, Math.min(5, num(t.layer) || 0));
-  // Ground road segments, for the "does this bridge cross a road" test.
+  const ids = [...roads.keys()];
+  const isLink = (id) => /_link$/.test(roads.get(id).tags.highway ?? "");
+  const bridge = (id) => isBridge(roads.get(id).tags);
+  const hs = new Map(ids.map((id) => [id, new Float64Array(roads.get(id).line.length)]));
+  const at = new Map(); // vertex key -> [{ id, i }]
+  for (const id of ids) {
+    roads.get(id).line.forEach((p, i) => {
+      const k = key(p);
+      if (!at.has(k)) at.set(k, []);
+      at.get(k).push({ id, i });
+    });
+  }
+  const unit = (p, q) => {
+    const l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+    return [(q[0] - p[0]) / l, (q[1] - p[1]) / l];
+  };
+  const COS_STRAIGHT = Math.cos((40 * Math.PI) / 180);
+
+  /**
+   * Walk from a point on road `id` (between i and i + dir, `s0` metres before point i + dir… see
+   * callers) in direction `dir`, assigning H - grade * distance. Continues onto the road that
+   * carries straight on. Returns nothing; heights are max'd in.
+   */
+  const walk = (id, i, dir, H, s0, plateauStart = false) => {
+    const path = [];
+    const seen = new Set([id]);
+    let cur = id;
+    let line = roads.get(cur).line;
+    let s = s0;
+    let landed = false;
+    let merged = false;
+    for (let hop = 0; hop < 16 && !landed && !merged; hop++) {
+      // Along the current road from point i in direction dir.
+      while (i >= 0 && i < line.length) {
+        if (path.length) {
+          const q = path[path.length - 1];
+          const pq = roads.get(q.id).line[q.j];
+          s += Math.hypot(line[i][0] - pq[0], line[i][1] - pq[1]);
+        }
+        const v = H - RAMP_GRADE * s;
+        if (v <= 0) {
+          landed = true;
+          break;
+        }
+        // Joining something at least as high (the walk reached another deck): stop.
+        if (path.length > 1 && hs.get(cur)[i] >= v && !(cur === id && plateauStart)) {
+          merged = true;
+          break;
+        }
+        path.push({ id: cur, j: i, s });
+        i += dir;
+      }
+      if (landed || merged) break;
+      // Continue onto the road that carries straight on from this road's end.
+      const endI = i - dir;
+      const node = line[endI];
+      const d = unit(line[endI - dir] ?? line[endI], node);
+      let best = null;
+      let bestCos = COS_STRAIGHT;
+      for (const { id: o, i: oi } of at.get(key(node)) ?? []) {
+        if (seen.has(o)) continue;
+        if (!(bridge(o) || isLink(o) === isLink(cur))) continue;
+        const ol = roads.get(o).line;
+        for (const step of [1, -1]) {
+          const oj = oi + step;
+          if (oj < 0 || oj >= ol.length) continue;
+          const u = unit(ol[oi], ol[oj]);
+          const c = u[0] * d[0] + u[1] * d[1];
+          if (c > bestCos) {
+            bestCos = c;
+            best = { o, oi, step };
+          }
+        }
+      }
+      if (!best) break;
+      seen.add(best.o);
+      cur = best.o;
+      line = roads.get(cur).line;
+      // The shared node belongs to the new road too (same height, no extra distance).
+      path.push({ id: cur, j: best.oi, s });
+      i = best.oi + best.step;
+      dir = best.step;
+      // The shared node is already on the path (end of the previous road).
+    }
+    if (!path.length) return;
+    const total = path[path.length - 1].s;
+    // Ran out of road in the air: regrade to land at the end of the walk.
+    const grade = landed || merged || total <= 0 ? RAMP_GRADE : Math.max(RAMP_GRADE, H / total);
+    for (const p of path) {
+      const v = Math.max(0, H - grade * p.s);
+      const h = hs.get(p.id);
+      if (v > h[p.j]) h[p.j] = v;
+    }
+  };
+
+  // Ground road segments, for the crossing test.
   const grid = new Grid(50);
   for (const [id, r] of roads) {
     if (isBridge(r.tags)) continue;
     for (let i = 1; i < r.line.length; i++) grid.add({ id, a: r.line[i - 1], b: r.line[i] }, bbox([r.line[i - 1], r.line[i]]));
   }
-  const crossesRoad = (r) => {
+  // Where each bridge crosses a road on the ground (segment index, parameter along it).
+  const crossingsOf = (r) => {
+    const out = [];
     for (let i = 1; i < r.line.length; i++) {
       const a = r.line[i - 1];
       const b = r.line[i];
-      for (const s of grid.query(...bbox([a, b]))) if (segsCross(a, b, s.a, s.b)) return true;
+      for (const g of grid.query(...bbox([a, b]))) {
+        if (!segsCross(a, b, g.a, g.b)) continue;
+        const dx = b[0] - a[0];
+        const dz = b[1] - a[1];
+        const ex = g.b[0] - g.a[0];
+        const ez = g.b[1] - g.a[1];
+        const den = dx * ez - dz * ex || 1;
+        out.push({ i, t: ((g.a[0] - a[0]) * ez - (g.a[1] - a[1]) * ex) / den, len: Math.hypot(dx, dz) });
+      }
     }
-    return false;
+    return out;
   };
-  const bridges = [...roads].filter(([, r]) => isBridge(r.tags));
-  const flyover = new Set(bridges.filter(([, r]) => crossesRoad(r)).map(([id]) => id));
-  // Spread to bridges joined to a flyover (interchange loops, multi-span decks).
-  const byVertex = new Map();
-  for (const [id, r] of bridges) {
-    for (const p of [r.line[0], r.line[r.line.length - 1]]) {
-      const k = key(p);
-      if (!byVertex.has(k)) byVertex.set(k, []);
-      byVertex.get(k).push(id);
-    }
+  const lengthOf = (r) => r.line.reduce((acc, p, i) => (i ? acc + Math.hypot(p[0] - r.line[i - 1][0], p[1] - r.line[i - 1][1]) : 0), 0);
+  let crossings = 0;
+  const flyovers = new Set();
+  // Main-road flyovers keep a level deck over their whole span: bridges that cross a road, or are
+  // long (canal bridges are short), plus spans joined end to end to one of them.
+  const plateau = new Set();
+  const bridgeCross = new Map();
+  for (const [id, r] of roads) {
+    if (!isBridge(r.tags)) continue;
+    const c = crossingsOf(r);
+    bridgeCross.set(id, c);
+    crossings += c.length;
+    if (!isLink(id) && (c.length || lengthOf(r) > 150)) plateau.add(id);
   }
   for (let grew = true; grew; ) {
     grew = false;
-    for (const [id, r] of bridges) {
-      if (flyover.has(id)) continue;
-      if ([r.line[0], r.line[r.line.length - 1]].some((p) => (byVertex.get(key(p)) ?? []).some((o) => flyover.has(o)))) {
-        flyover.add(id);
+    for (const [id, r] of roads) {
+      if (plateau.has(id) || !isBridge(r.tags) || isLink(id)) continue;
+      const ends = [r.line[0], r.line[r.line.length - 1]].map(key);
+      if (ends.some((k) => (at.get(k) ?? []).some((o) => plateau.has(o.id)))) {
+        plateau.add(id);
         grew = true;
       }
     }
   }
-  // Heights: fixed on flyovers, falling away along every connected road.
-  const h = new Map(); // vertex key -> height
-  const adj = new Map(); // vertex key -> [{ k, len }]
-  const link = (a, b) => {
-    const ka = key(a);
-    const kb = key(b);
-    const len = Math.hypot(a[0] - b[0], a[1] - b[1]);
-    if (!adj.has(ka)) adj.set(ka, []);
-    if (!adj.has(kb)) adj.set(kb, []);
-    adj.get(ka).push({ k: kb, len });
-    adj.get(kb).push({ k: ka, len });
-  };
-  const queue = [];
-  for (const [id, r] of roads) {
-    for (let i = 1; i < r.line.length; i++) link(r.line[i - 1], r.line[i]);
-    if (!flyover.has(id)) continue;
+  for (const id of plateau) {
+    const r = roads.get(id);
+    hs.get(id).fill(DECK(layerOf(r.tags)));
+    flyovers.add(id);
+  }
+  for (const id of plateau) {
+    const r = roads.get(id);
     const H = DECK(layerOf(r.tags));
-    for (const p of r.line) {
-      const k = key(p);
-      if ((h.get(k) ?? 0) < H) {
-        h.set(k, H);
-        queue.push(k);
-      }
+    const n = r.line.length;
+    // Approaches beyond both ends (start from the end node, walking away from the deck).
+    walk(id, n - 1, 1, H, 0);
+    walk(id, 0, -1, H, 0);
+  }
+  // Slip-road bridges: deck height where they cross a road, falling away from there.
+  for (const [id, c] of bridgeCross) {
+    if (plateau.has(id) || !c.length) continue;
+    const H = DECK(layerOf(roads.get(id).tags));
+    flyovers.add(id);
+    for (const { i, t, len } of c) {
+      walk(id, i, 1, H, (1 - t) * len);
+      walk(id, i - 1, -1, H, t * len);
     }
   }
-  const fixed = new Set(h.keys());
-  // Highest first: each vertex takes the best height any flyover can give it down a ramp.
-  queue.sort((a, b) => h.get(a) - h.get(b));
-  while (queue.length) {
-    const k = queue.pop();
-    const hk = h.get(k);
-    for (const { k: n, len } of adj.get(k) ?? []) {
-      if (fixed.has(n)) continue;
-      const v = hk - RAMP_GRADE * len;
-      if (v <= 0.05 || v <= (h.get(n) ?? 0)) continue;
-      h.set(n, v);
-      // Keep the queue roughly ordered (insert by height).
-      let lo = 0;
-      let hi = queue.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (h.get(queue[mid]) < v) lo = mid + 1;
-        else hi = mid;
+  // Slip roads leaving a raised deck descend from it along their own length (a few rounds:
+  // a loop can feed another slip road).
+  for (let round = 0; round < 3; round++) {
+    for (const id of ids) {
+      if (!isLink(id)) continue;
+      const line = roads.get(id).line;
+      const h = hs.get(id);
+      for (const [end, dir] of [
+        [0, 1],
+        [line.length - 1, -1],
+      ]) {
+        let top = 0;
+        for (const { id: o, i } of at.get(key(line[end])) ?? []) if (o !== id) top = Math.max(top, hs.get(o)[i]);
+        if (top <= 1 || h[end] >= top - 0.01) continue;
+        h[end] = top;
+        walk(id, end + dir, dir, top, Math.hypot(line[end + dir][0] - line[end][0], line[end + dir][1] - line[end][1]));
       }
-      queue.splice(lo, 0, n);
     }
   }
   const out = new Map();
-  for (const [id, r] of roads) {
-    const hs = r.line.map((p) => h.get(key(p)) ?? 0);
-    if (hs.some((v) => v > 0.05)) out.set(id, hs);
+  for (const id of ids) {
+    const h = hs.get(id);
+    if (h.some((v) => v > 0.05)) out.set(id, Array.from(h));
   }
-  console.log(`flyovers: ${flyover.size} of ${bridges.length} bridges`);
+  console.log(`flyovers: ${flyovers.size} bridges over ${crossings} road crossings`);
   return out;
 }
