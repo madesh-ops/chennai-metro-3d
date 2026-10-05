@@ -1,9 +1,9 @@
 # Chennai Metro 3D
 
-**Explore the journey.** An interactive, real-time 3D ride on Chennai Metro's Blue (Line 1), Green (Line 2), Yellow (Line 4)
-and Red (Line 5) lines, on the real track (OpenStreetMap) through the real city. Five routes: Wimco Nagar Depot → Airport,
-Central → St. Thomas Mount, Poonamallee Bypass → Vadapalani (opening), and previews of Vadapalani → Lighthouse and
-Madhavaram → Sholinganallur (under construction).
+**Explore the journey.** An interactive, real-time 3D ride on Chennai Metro's Blue (Line 1), Green (Line 2), Purple (Line 3),
+Yellow (Line 4) and Red (Line 5) lines, on the real track (OpenStreetMap) through the real city. Six routes: Wimco Nagar Depot →
+Airport, Central → St. Thomas Mount, Poonamallee Bypass → Vadapalani (opening), and previews of Madhavaram → SIPCOT,
+Vadapalani → Lighthouse and Madhavaram → Sholinganallur (under construction).
 
 Pick a line and any two stations, then watch a three-car train depart, accelerate, cruise, brake into each platform, open its doors and carry on.
 You can watch from five cameras, by day or night, in sun or rain.
@@ -131,6 +131,7 @@ Verified on **3 Oct 2026**. Full provenance is on `/about`.
 | MGR Flyover on Mount–Poonamallee Road at Porur Junction (505 m, 4 lanes, opened 25 Jun 2017), Kundrathur Main Road | Length, lanes and opening verified; route along Mount–Poonamallee Road traced from satellite imagery (shares the metro corridor west of the junction, then veers east-south-east while the metro turns up Arcot Road); width assumed; height drawn lower than real so buses clear the metro's steel portal beams |
 | Nexus Vijaya Mall, Kamala Cinemas (Vadapalani) | Approximate positions traced from satellite imagery supplied by the project owner; stylised models from reference photos; hoardings and film posters invented |
 | Chandra Metro Mall (Arcot Road, Virugambakkam) | Between Alwarthirunagar and Saligramam on the north side, per the project owner and their satellite view; footprint (narrow front, deep white-roofed hall, car park) traced from that view; stylised facade from street photos; ads and films invented. Mappls address kept as the source |
+| Line 3 stations OpenStreetMap does not map yet (43 of 48) | As for Line 5 below (Wikipedia Purple Line station list). The mapped Line 3 track ends short of SIPCOT 2 (44.4 km of the published 45.8 km), so SIPCOT 2 is placed at its end |
 | Line 5 stations OpenStreetMap does not map yet (18 of 45: Villivakkam–Koyambedu and south of St. Thomas Mount) | Names and order from Wikipedia (Red Line station list); placed at the same-name bus stop or locality on the real track where one exists, otherwise spaced evenly between neighbours. Each is labelled with how it was placed |
 | City: buildings, streets, water, parks along every line | From OpenStreetMap (`public/world/`, 1 km tiles within 700 m of each line): real footprints and street grid, real lake and park outlines. Heights are estimated (OSM has almost none here) from building type, footprint and main-road frontage. Where a street has no buildings mapped at all (much of the west), plausible plots are laid along the real street, flagged procedural in the data |
 | Fare bands (₹10 up to 2 km, ₹20 up to 5, ₹30 up to 12, ₹40 up to 21, ₹50 beyond) | Approximate (passenger guides; CMRL's fare page was unavailable); matches the published Line 4 range ₹10–40. 20% QR / NCMC discount verified (CMRL) |

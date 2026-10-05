@@ -11,7 +11,7 @@ import { lineInfo, statusChip } from "../../lib/lines";
 
 export const metadata: Metadata = {
   title: "Explore the network",
-  description: "Chennai Metro's Blue, Green, Yellow and Red lines on one map: routes, status, speed limits, the Arcot Road double-decker and the trains.",
+  description: "Chennai Metro's Blue, Green, Purple, Yellow and Red lines on one map: routes, status, speed limits, the Arcot Road double-decker and the trains.",
 };
 
 export default function ExplorePage() {
@@ -29,7 +29,7 @@ export default function ExplorePage() {
               <h1 className="text-[32px] font-semibold tracking-[-0.02em] sm:text-[40px]">Explore the network</h1>
               <p className="text-[16px] leading-relaxed text-muted">
                 The Blue and Green lines are open; Line 4&apos;s first stretch to Vadapalani opens next, and the rest of Line 4 and the
-                Red Line are under construction. Every line is drawn on its real track from OpenStreetMap.
+                Purple and Red lines are under construction. Every line is drawn on its real track from OpenStreetMap.
               </p>
             </div>
             <Link href="/routes" className={buttonClass("primary", "md")}>

@@ -75,7 +75,7 @@ export function Hero({ facts }: { facts: HeroFacts }) {
             Explore the journey.
           </h1>
           <p className="max-w-[420px] text-[17px] leading-relaxed text-[#aeb8c5] sm:text-[18px]">
-            Ride the Blue, Green, Yellow and Red lines in real-time 3D, on the real track through the real streets of Chennai.
+            Ride the Blue, Green, Purple, Yellow and Red lines in real-time 3D, on the real track through the real streets of Chennai.
           </p>
         </div>
         <div className="flex flex-wrap gap-3 animate-rise-in [animation-delay:120ms]">

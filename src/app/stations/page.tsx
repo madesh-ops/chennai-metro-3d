@@ -11,7 +11,7 @@ import type { RouteSummary } from "../../lib/routeSummary";
 
 export const metadata: Metadata = {
   title: "Stations",
-  description: "Every station on Chennai Metro's Blue, Green, Yellow and Red lines, in English and Tamil, with interchanges.",
+  description: "Every station on Chennai Metro's Blue, Green, Purple, Yellow and Red lines, in English and Tamil, with interchanges.",
 };
 
 export default function StationsPage() {

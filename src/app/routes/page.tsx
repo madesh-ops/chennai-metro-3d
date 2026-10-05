@@ -6,7 +6,7 @@ import { getAllRouteSummaries } from "../../lib/getRouteSummary";
 
 export const metadata: Metadata = {
   title: "Choose your journey",
-  description: "Pick a Chennai Metro line — Blue, Green, Yellow or Red — and any two stations, then ride between them in 3D.",
+  description: "Pick a Chennai Metro line — Blue, Green, Purple, Yellow or Red — and any two stations, then ride between them in 3D.",
 };
 
 export default function RoutesPage() {

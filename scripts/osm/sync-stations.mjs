@@ -45,6 +45,18 @@ const ROUTES = [
     lengthKm: 22.0,
   },
   {
+    id: "line-3-madhavaram-sipcot",
+    line: "line-3",
+    name: "Corridor 3",
+    title: "Madhavaram Milk Colony — SIPCOT",
+    status: "under-construction",
+    statusLabel: "Under construction · preview ride",
+    openingDate: "",
+    headwayMinutes: 10,
+    operatingHours: "Not yet operating",
+    lengthKm: 45.8,
+  },
+  {
     id: "line-4-vadapalani-lighthouse",
     line: "line-4",
     name: "Corridor 4",
@@ -72,6 +84,15 @@ const ROUTES = [
 ];
 
 const LINES = {
+  "line-3": {
+    id: "line-3",
+    name: "Line 3",
+    corridor: "Corridor 3",
+    colourName: "Purple Line",
+    termini: ["Madhavaram Milk Colony", "SIPCOT 2"],
+    status: "Under construction. Elevated section expected Dec 2027, underground Dec 2028 (Wikipedia).",
+    source: "Wikipedia — Purple Line (Chennai Metro); OpenStreetMap route relation",
+  },
   "line-1": { id: "line-1", name: "Line 1", corridor: "Corridor 1", colourName: "Blue Line", termini: ["Wimco Nagar Depot", "Chennai International Airport"], status: "Open.", source: "Wikipedia — Blue Line (Chennai Metro); OpenStreetMap route relation" },
 };
 
@@ -151,7 +172,7 @@ async function main() {
   for (const [id, l] of Object.entries(LINES)) {
     if (routes.lines.some((x) => x.id === id)) continue;
     const osm = net.lines.find((x) => x.id === id);
-    routes.lines.push({ ...l, colour: osm?.osmColour?.toUpperCase() ?? "#3281C4", colourNote: "Colour from the OpenStreetMap route relation.", lengthKm: Number((osm.lengthM / 1000).toFixed(1)) });
+    routes.lines.push({ ...l, colour: osm?.osmColour?.toUpperCase() ?? "#3281C4", colourNote: "Colour from the OpenStreetMap route relation.", lengthKm: id === "line-3" ? 45.8 : Number((osm.lengthM / 1000).toFixed(1)) });
   }
   await write("stations", stations);
   await write("routes", routes);

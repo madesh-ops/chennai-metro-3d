@@ -39,6 +39,75 @@ export const LINE_SPECS = [
     to: ["St. Thomas Mount", "பரங்கிமலை", "Parangimalai"],
   },
   {
+    id: "line-3",
+    name: "Line 3",
+    colourName: "Purple Line",
+    own: /Line 3|Purple Line/i,
+    from: ["Madhavaram Milk Colony"],
+    // SIPCOT 2 is not mapped yet: run to the end of Line 3's own track.
+    to: ["SIPCOT 2", "Siruseri SIPCOT 2", "SIPCOT"],
+    toTrackEnd: true,
+    /** OSM maps 5 of the 48 stations; the rest as for Line 5 (see below). */
+    supplement: {
+      source: "Wikipedia — Purple Line (Chennai Metro), station list (2026-10-05)",
+      after: {
+        "Madhavaram Milk Colony": [
+          { name: "Madhavaram High Road", nameTa: null },
+          { name: "Moolakadai", nameTa: "மூலக்கடை", at: [13.12917, 80.2417], quality: "locality" },
+          { name: "Sembiyum", nameTa: null, at: [13.12201, 80.24122], quality: "locality" },
+          { name: "Perambur Market", nameTa: null },
+          { name: "Perambur", nameTa: "பெரம்பூர்", at: [13.10816, 80.24449], quality: "bus-stop" },
+          { name: "Ayanavaram", nameTa: null, at: [13.09863, 80.24201], quality: "bus-stop" },
+          { name: "Otteri", nameTa: "ஓட்டேரி", at: [13.09721, 80.25138], quality: "bus-stop" },
+          { name: "Pattalam", nameTa: null },
+          { name: "Perambur Barracks Road", nameTa: null },
+          { name: "Purasaiwakkam", nameTa: "புரசைவாக்கம்", at: [13.08933, 80.25503], quality: "locality" },
+          { name: "Kellys", nameTa: null, at: [13.08282, 80.24333], quality: "locality" },
+        ],
+        "Kilpauk": [
+          { name: "Chetpet", nameTa: "சேத்துப்பட்டு", at: [13.07048, 80.24212], quality: "bus-stop" },
+          { name: "Sterling Road", nameTa: "ஸ்டெர்லிங் ரோடு", at: [13.0635, 80.24345], quality: "bus-stop" },
+          { name: "Nungambakkam", nameTa: "நுங்கம்பாக்கம்" },
+          { name: "Anna Flyover", nameTa: null, at: [13.05531, 80.24938], quality: "bus-stop" },
+          { name: "Thousand Lights", nameTa: "ஆயிரம் விளக்கு", at: [13.05652, 80.25644], quality: "bus-stop" },
+        ],
+        "Royapettah Metro": [
+          { name: "Dr. Radhakrishnan Salai", nameTa: null },
+        ],
+        "Thirumayilai Metro": [
+          { name: "Mandaiveli", nameTa: null, at: [13.0272, 80.26624], quality: "bus-stop" },
+          { name: "Greenways Road", nameTa: null },
+          { name: "Adyar Junction", nameTa: null, at: [13.00707, 80.25864], quality: "bus-stop" },
+          { name: "Adyar Depot", nameTa: null, at: [12.99874, 80.25617], quality: "bus-stop" },
+          { name: "Indira Nagar", nameTa: "இந்திரா நகர்", at: [12.99606, 80.24972], quality: "locality" },
+          { name: "Thiruvanmiyur", nameTa: null, at: [12.98325, 80.25502], quality: "locality" },
+          { name: "Tharamani", nameTa: null },
+          { name: "Nehru Nagar", nameTa: null, at: [12.97422, 80.24754], quality: "locality" },
+          { name: "Kandanchavadi", nameTa: null, at: [12.96692, 80.24828], quality: "bus-stop" },
+          { name: "Perungudi", nameTa: null },
+          { name: "Thoraipakkam", nameTa: "துறைப்பாக்கம்", at: [12.95262, 80.24187], quality: "bus-stop" },
+          { name: "Mettukuppam", nameTa: "மேட்டுக்குப்பம்", at: [12.94001, 80.23563], quality: "bus-stop" },
+          { name: "PTC Colony", nameTa: null, at: [12.93411, 80.23615], quality: "locality" },
+          { name: "Okkiyampet", nameTa: null },
+          { name: "Karapakkam", nameTa: "காரப்பாக்கம்", at: [12.91328, 80.22936], quality: "bus-stop" },
+          { name: "Okkiyam Thoraipakkam", nameTa: null },
+        ],
+        "Sholinganallur Metro": [
+          { name: "Sholinganallur Lake I", nameTa: null },
+          { name: "Sholinganallur Lake II", nameTa: null },
+          { name: "Semmancheri Depot", nameTa: null },
+          { name: "Semmancheri I", nameTa: null },
+          { name: "Semmancheri II", nameTa: null },
+          { name: "Gandhi Nagar", nameTa: null },
+          { name: "Navallur", nameTa: "நாவலூர்", at: [12.84458, 80.22646], quality: "bus-stop" },
+          { name: "Siruseri", nameTa: null },
+          { name: "SIPCOT 1", nameTa: null, at: [12.83208, 80.2292], quality: "bus-stop" },
+          { name: "SIPCOT 2", nameTa: null, atTrackEnd: true },
+        ],
+      },
+    },
+  },
+  {
     id: "line-4",
     name: "Line 4",
     colourName: "Yellow Line",
@@ -105,7 +174,10 @@ function addSupplement(spec, stations, samples) {
     const i = stations.findIndex((s) => s.name === after);
     if (i < 0) throw new Error(`${spec.id}: supplement anchor ${after} not found`);
     const next = stations[i + 1];
+    const end = samples[samples.length - 1].d;
     const run = list.map((e) => {
+      // The mapped track ends at the terminus: a little short of the buffer.
+      if (e.atTrackEnd) return { ...e, d: end - 120, quality: "interpolated" };
       if (!e.at) return { ...e, d: null };
       const [x, z] = toLocal(e.at[0], e.at[1]);
       const p = projectOnto(samples, x, z);
@@ -513,7 +585,13 @@ async function main() {
     const findStation = (names) =>
       allNamed.find((n) => names.some((nm) => [n.tags.name, n.tags["name:en"], n.tags["name:ta"]].some((v) => v && v.toLowerCase() === nm.toLowerCase())));
     const a = findStation(spec.from);
-    const b = findStation(spec.to);
+    let b = findStation(spec.to);
+    if (!b && spec.toTrackEnd && a) {
+      // Terminus not mapped yet: the end of the line's own track farthest from the other terminus.
+      const [ax0, az0] = toLocal(a.lat, a.lon);
+      const ends = graph.filter((v) => v.edges.some((e) => e.own));
+      b = ends.reduce((best, v) => (Math.hypot(v.x - ax0, v.z - az0) > Math.hypot(best.x - ax0, best.z - az0) ? v : best), ends[0]);
+    }
     if (!a || !b) throw new Error(`${spec.id}: termini not found (${!a ? spec.from[0] : spec.to[0]})`);
     const [ax, az] = toLocal(a.lat, a.lon);
     const [bx, bz] = toLocal(b.lat, b.lon);

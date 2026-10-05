@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     template: "%s · Chennai Metro 3D",
   },
   description:
-    "Ride Chennai Metro's Blue, Green, Yellow and Red lines in an interactive real-time 3D simulation, on the real track through the real city. Built on open data, no paid APIs.",
+    "Ride Chennai Metro's Blue, Green, Purple, Yellow and Red lines in an interactive real-time 3D simulation, on the real track through the real city. Built on open data, no paid APIs.",
   applicationName: "Chennai Metro 3D",
 };
 

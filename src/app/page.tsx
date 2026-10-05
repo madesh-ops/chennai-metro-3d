@@ -7,6 +7,8 @@ import { getAllRouteSummaries, getNetworkSummary } from "../lib/getRouteSummary"
 import { simulatorHref } from "../lib/routeSummary";
 import { statusChip } from "../lib/lines";
 
+const WORDS: Record<number, string> = { 4: "Four", 5: "Five", 6: "Six" };
+
 export default function HomePage() {
   const routes = getAllRouteSummaries();
   const network = getNetworkSummary();
@@ -27,7 +29,7 @@ export default function HomePage() {
             <div className="flex flex-col gap-5">
               <p className="font-mono text-[12px] tracking-[0.08em] text-muted">THE NETWORK</p>
               <h2 id="lines-heading" className="text-[32px] font-semibold leading-[1.12] tracking-[-0.02em] sm:text-[40px]">
-                Four lines, {Math.round(lengthKm)} km of real track, {network.stations.length} stations.
+                {WORDS[network.lines.length] ?? network.lines.length} lines, {Math.round(lengthKm)} km of real track, {network.stations.length} stations.
               </h2>
               <p className="max-w-xl text-[16px] leading-relaxed text-muted">
                 Every line runs on its real path from OpenStreetMap: up on viaducts, down into tunnels and underground stations, past

@@ -5,7 +5,7 @@ import { journeyDuration, simulatorHref } from "./routeSummary.ts";
 
 test("every route has a summary with a playable journey", () => {
   const all = getAllRouteSummaries();
-  assert.equal(all.length, 5);
+  assert.equal(all.length, 6);
   for (const r of all) {
     assert.ok(r.stopIds.length >= 10, r.id);
     const t = journeyDuration(r, r.stopIds[0], r.stopIds[r.stopIds.length - 1]);
@@ -22,9 +22,9 @@ test("interchanges come from stations shared between lines", () => {
   assert.ok(l4.stations.find((s) => s.id === "vadapalani")!.interchange.includes("line-2"));
 });
 
-test("network summary: four lines, shared stations once", () => {
+test("network summary: five lines, shared stations once", () => {
   const n = getNetworkSummary();
-  assert.deepEqual(n.lines.map((l) => l.id).sort(), ["line-1", "line-2", "line-4", "line-5"]);
+  assert.deepEqual(n.lines.map((l) => l.id).sort(), ["line-1", "line-2", "line-3", "line-4", "line-5"]);
   const ids = n.stations.map((s) => s.id);
   assert.equal(new Set(ids).size, ids.length);
   assert.deepEqual(n.stations.find((s) => s.id === "alandur")!.lines, ["line-1", "line-2", "line-5"]);

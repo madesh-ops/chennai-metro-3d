@@ -20,8 +20,8 @@ test("network credits OpenStreetMap", () => {
 });
 
 test("line lengths match the published figures", () => {
-  // Published route lengths (CMRL / Wikipedia): Line 1 32.1 km, Line 2 22 km, Line 4 26.1 km, Line 5 ~47 km (u/c).
-  const published: Record<string, number> = { "line-1": 32.1, "line-2": 22.0, "line-4": 26.1, "line-5": 47.0 };
+  // Published route lengths (CMRL / Wikipedia): Line 1 32.1 km, Line 2 22 km, Line 3 45.8 km (u/c), Line 4 26.1 km, Line 5 ~47 km (u/c).
+  const published: Record<string, number> = { "line-1": 32.1, "line-2": 22.0, "line-3": 45.8, "line-4": 26.1, "line-5": 47.0 };
   for (const [id, km] of Object.entries(published)) {
     const got = line(id).lengthM / 1000;
     assert.ok(Math.abs(got - km) / km < 0.06, `${id}: ${got.toFixed(2)} km vs ${km} km`);
@@ -80,4 +80,15 @@ test("Line 5: all 45 stations (Wikipedia), unmapped ones flagged with how they w
   const names = l5.stations.map((s) => s.name);
   assert.ok(names.indexOf("Thirumangalam") > names.indexOf("Villivakkam Metro"));
   assert.ok(names.indexOf("Adambakkam") === names.indexOf("St. Thomas Mount Metro") + 1);
+});
+
+test("Line 3: all 48 stations (Wikipedia), mostly underground then elevated", () => {
+  const l3 = line("line-3");
+  assert.equal(l3.stations.length, 48);
+  for (let i = 1; i < l3.stations.length; i++) assert.ok(l3.stations[i].d > l3.stations[i - 1].d + 450, `${l3.stations[i].name}`);
+  const names = l3.stations.map((s) => s.name);
+  for (const n of ["Kilpauk", "Thousand Lights", "Thirumayilai Metro", "Sholinganallur Metro"]) assert.ok(names.includes(n), n);
+  // Underground from Madhavaram to Thiruvanmiyur, then on a viaduct down OMR.
+  assert.equal(l3.structure[0][2], "underground");
+  assert.equal(l3.structure[l3.structure.length - 1][2], "elevated");
 });
