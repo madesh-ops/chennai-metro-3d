@@ -13,10 +13,10 @@ import { Line5Branch } from "./Line5Branch.tsx";
 import { Flyover } from "./Flyover.tsx";
 import { Stations } from "./Stations.tsx";
 import { City } from "./City.tsx";
+import { WorldTiles } from "./world/WorldTiles.tsx";
 import { Landmarks } from "./Landmarks.tsx";
 import { Traffic } from "./Traffic.tsx";
 import { CameraRig } from "./Cameras.tsx";
-import { planCrossStreets } from "./cityGen.ts";
 import { getRouteModel } from "../simulation/data.ts";
 
 const CRUISE = 9.5; // m/s ≈ 34 km/h — unhurried, cinematic
@@ -38,12 +38,15 @@ export default function HeroScene({ reducedMotion, onReady }: { reducedMotion: b
   const start = route.stationById.get("thelliyaragaram")!.distance + 70;
   const end = route.stationById.get("porur-junction")!.distance - 140;
   const range = useMemo<[number, number]>(() => [start - 250, end + 250], [start, end]);
-  const crossStreets = useMemo(() => planCrossStreets(route, range[0], range[1]), [route, range]);
+  const crossStreets = useMemo<number[]>(() => [], []);
   const quality = typeof navigator !== "undefined" && /Mobi|Android/i.test(navigator.userAgent) ? "low" : "medium";
 
+  const parts = useRef({ environment: 0, world: 0 });
   const reportProgress = useCallback(
-    (key: "environment" | "train", v: number) => {
-      if (key === "environment" && v >= 1 && !ready) {
+    (key: "environment" | "world" | "train", v: number) => {
+      if (key === "train") return;
+      parts.current[key] = v;
+      if (parts.current.environment >= 1 && parts.current.world >= 1 && !ready) {
         setReady(true);
         onReady?.();
       }
@@ -88,6 +91,7 @@ export default function HeroScene({ reducedMotion, onReady }: { reducedMotion: b
           <Line5Branch />
           <Flyover />
           <Stations />
+          <WorldTiles shadows={false} />
           <City crossStreets={crossStreets} shadows={false} />
           <Landmarks shadows={false} />
           <Traffic getSimDelta={() => (reducedMotion ? 0 : 1 / 60)} enabled />

@@ -76,8 +76,8 @@ export function placeVehicle(route: RouteModel, v: TrafficVehicle, range: [numbe
         visible = false;
       }
     }
-    // The road ends with the scenery.
-    if (v.s < range[0] || v.s > range[1]) visible = false;
+    // The road ends with the scenery, and exists only under the viaduct (not over tunnels).
+    if (v.s < range[0] || v.s > range[1] || route.profile.railAt(v.s) < 4) visible = false;
   }
   if (v.dir < 0) yaw += Math.PI;
   out.x = pt.x;

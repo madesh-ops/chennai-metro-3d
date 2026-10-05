@@ -15,13 +15,13 @@ import { Line5Branch } from "./Line5Branch.tsx";
 import { Flyover } from "./Flyover.tsx";
 import { Stations, type StationSignalState } from "./Stations.tsx";
 import { City } from "./City.tsx";
+import { WorldTiles } from "./world/WorldTiles.tsx";
 import { Landmarks } from "./Landmarks.tsx";
 import { Traffic } from "./Traffic.tsx";
 import { TrafficAudio } from "./TrafficAudio.tsx";
 import { Rain } from "./Weather.tsx";
 import { CameraRig } from "./Cameras.tsx";
 import { MapOverlay } from "./MapOverlay.tsx";
-import { planCrossStreets } from "./cityGen.ts";
 import type { SimulationEngine } from "../simulation/SimulationEngine.ts";
 import { arrivalPhase } from "../simulation/StationController.ts";
 import { useViewStore, type Quality } from "../simulation/store.ts";
@@ -103,14 +103,23 @@ export default function SimulatorScene({ engine, onProgress, onContextLost }: Si
     const margin = route.params.tailTrack + 400;
     return [Math.max(0, route.startDistance - margin), Math.min(route.alignment.length, route.endDistance + margin)];
   }, [route]);
-  const crossStreets = useMemo(() => planCrossStreets(route, range[0], range[1]), [route, range]);
+  // The real street grid comes from the world tiles; no invented cross streets.
+  const crossStreets = useMemo<number[]>(() => [], []);
   const signal = useMemo<StationSignalState>(() => ({ holdAt: null }), []);
 
+  // The environment is the street furniture (City) plus the first world tiles round the train.
+  const envParts = useRef({ environment: 0, world: 0 });
   const reportProgress = useCallback(
-    (key: "environment" | "train", value: number) => {
-      onProgress(key, value);
-      if (key === "environment" && value >= 1) setEnvDone(true);
-      if (key === "train" && value >= 1) setTrainDone(true);
+    (key: "environment" | "world" | "train", value: number) => {
+      if (key === "train") {
+        onProgress("train", value);
+        if (value >= 1) setTrainDone(true);
+        return;
+      }
+      envParts.current[key] = value;
+      const { environment, world } = envParts.current;
+      onProgress("environment", (environment + world) / 2);
+      if (environment >= 1 && world >= 1) setEnvDone(true);
     },
     [onProgress],
   );
@@ -190,6 +199,7 @@ export default function SimulatorScene({ engine, onProgress, onContextLost }: Si
         <Line5Branch />
         <Flyover />
         <Stations signal={signal} />
+        <WorldTiles shadows={shadows && settings.quality === "high"} />
         <City crossStreets={crossStreets} shadows={shadows && settings.quality === "high"} />
         <Landmarks shadows={shadows} />
         <Traffic getSimDelta={() => engine.lastDelta} enabled={settings.traffic} />

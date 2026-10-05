@@ -142,6 +142,8 @@ export function Landmarks({ shadows }: { shadows: boolean }) {
   const { route, range, env } = useScene();
   const items = useMemo(() => {
     return landmarkFootprints(route)
+      // The real lake outline comes from the world tiles (OpenStreetMap water).
+      .filter((f) => f.placement.type !== "lake")
       .filter((f) => f.distance + f.along / 2 > range[0] && f.distance - f.along / 2 < range[1])
       .map((f) => {
         const p = f.placement;

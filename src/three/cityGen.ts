@@ -124,6 +124,11 @@ export function generateCityChunk(
   d1: number,
   quality: Quality,
   crossStreets: number[],
+  /**
+   * The real city comes from the world tiles (OSM): generate only the street
+   * furniture of the corridor road under the viaduct (trees, lights, people).
+   */
+  world = false,
 ): CityChunk {
   const { alignment } = route;
   const dens = DENSITY[quality];
@@ -216,9 +221,12 @@ export function generateCityChunk(
     return floors;
   };
 
+  // Where the corridor road exists: under the viaduct (not over tunnels or troughs).
+  const onCorridor = (d: number) => route.profile.railAt(d) >= 4;
+
   for (const side of [-1, 1] as const) {
     // Row 1: continuous frontage onto the main road.
-    let d = d0;
+    let d = world ? d1 : d0;
     while (d < d1) {
       const zone = styleAt(d, side);
       if (zone) {
@@ -249,10 +257,10 @@ export function generateCityChunk(
       if (placed && kind === 1) addSigns(mid, side * (setback + depth / 2), lot, depth, side, rng);
     }
     // Rows 2–3: behind the frontage, looser.
-    for (const [lat0, lat1, prob] of [
+    for (const [lat0, lat1, prob] of world ? [] : ([
       [44, 74, 0.82],
       [84, 140, 0.7],
-    ] as const) {
+    ] as const)) {
       d = d0;
       while (d < d1) {
         const zone = styleAt(d, side);
@@ -282,7 +290,7 @@ export function generateCityChunk(
       }
     }
     // Far field: sparse blocks for skyline depth.
-    for (let fd = d0; fd < d1; fd += 46) {
+    for (let fd = d0; fd < (world ? d0 : d1); fd += 46) {
       for (let lat = 160; lat < 720; lat += 46) {
         if (rng() > dens.far * (1 - lat / 1100)) continue;
         const along = rr(rng, 14, 38);
@@ -296,7 +304,7 @@ export function generateCityChunk(
     }
 
     // Traced neighbourhood extras: a third row of houses, and apartment blocks round a courtyard.
-    for (const z of route.neighbourhoods) {
+    for (const z of world ? [] : route.neighbourhoods) {
       const style = side > 0 ? z.right : z.left;
       if (!style || z.to < d0 || z.from >= d1) continue;
       const zr = mulberry32(Math.floor(z.from * 3.1) + (side > 0 ? 7 : 11));
@@ -324,11 +332,11 @@ export function generateCityChunk(
     d = d0 + rr(rng, 0, 10);
     while (d < d1) {
       d += rr(rng, 13, 30) / dens.trees;
-      if (nearStation(d, 50) || nearCross(d, 10)) continue;
+      if (nearStation(d, 50) || nearCross(d, 10) || (world && !onCorridor(d))) continue;
       addTree(d, side * (ROAD.halfWidth + ROAD.sidewalk - 0.6 + rr(rng, -0.2, 0.4)), rng);
     }
     // Scattered greenery behind buildings.
-    const scatter = Math.floor(((d1 - d0) / 1000) * 220 * dens.scatter);
+    const scatter = world ? 0 : Math.floor(((d1 - d0) / 1000) * 220 * dens.scatter);
     for (let i = 0; i < scatter; i++) {
       const sd = rr(rng, d0, d1);
       const lat = side * rr(rng, 30, 420);
@@ -337,7 +345,7 @@ export function generateCityChunk(
 
     // Street lights every ~36 m, staggered per side.
     for (let ld = d0 + (side > 0 ? 0 : 18); ld < d1; ld += 36) {
-      if (nearStation(ld, 48) || nearCross(ld, 9)) continue;
+      if (nearStation(ld, 48) || nearCross(ld, 9) || (world && !onCorridor(ld))) continue;
       const lateral = side * (ROAD.halfWidth + 0.5);
       const p = place(ld, lateral);
       const yaw = alignment.heading(ld) + (side > 0 ? Math.PI : 0);
@@ -352,7 +360,7 @@ export function generateCityChunk(
     // Pedestrians on the footpaths near stations.
     if (dens.people > 0) {
       for (const st of route.stations) {
-        if (st.distance < d0 || st.distance >= d1 || st.service !== "stop") continue;
+        if (st.distance < d0 || st.distance >= d1 || st.service !== "stop" || (world && !onCorridor(st.distance))) continue;
         const n = Math.round(16 * dens.people);
         for (let i = 0; i < n; i++) {
           const pd = st.distance + rr(rng, -70, 70);

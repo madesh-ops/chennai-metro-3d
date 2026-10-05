@@ -71,7 +71,7 @@ export interface SceneContextValue {
   /** Alignment range the scenery is generated for. */
   range: [number, number];
   /** Called by heavy components to report loading progress (0..1). */
-  reportProgress?: (key: "environment" | "train", value: number) => void;
+  reportProgress?: (key: "environment" | "world" | "train", value: number) => void;
 }
 
 export const SceneContext = createContext<SceneContextValue | null>(null);

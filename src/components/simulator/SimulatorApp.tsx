@@ -179,6 +179,16 @@ function Simulator({ engine }: { engine: SimulationEngine }) {
       {/* Soft top shade keeps the HUD legible over bright skies. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[rgba(7,11,18,0.55)] to-transparent" />
 
+      {use3d && (
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noreferrer"
+          className="absolute bottom-1 right-2 z-10 text-[10px] text-white/55 hover:text-white/80"
+        >
+          Map data © OpenStreetMap contributors
+        </a>
+      )}
       <TopBar onOpenMenu={() => setMenuOpen(true)} threeD={use3d} />
       <RouteSidebar
         engine={engine}

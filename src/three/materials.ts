@@ -118,3 +118,116 @@ export function nightEmissive(params: MeshStandardMaterialParameters, dayIntensi
   mat.emissiveIntensity = dayIntensity;
   return mat;
 }
+
+/**
+ * Building material for real footprints (world tiles): merged, non-instanced
+ * walls, so the facade frame comes from per-vertex attributes instead of the
+ * instance scale. aFacade = (metres along this wall, height, wall length,
+ * building height); aKind as BUILDING in world/tileFormat.ts (0 residential,
+ * 1 shops, 2 glass office, 3 industrial, 4 religious, 5 institutional).
+ * Window bays are fitted to each wall so no window is cut at a corner.
+ */
+export function createFootprintBuildingMaterial(env: SceneEnv): MeshStandardMaterial {
+  const mat = new MeshStandardMaterial({ roughness: 0.88, metalness: 0.0, vertexColors: true });
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uNight = env.uniforms.uNight;
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+        attribute vec4 aFacade;
+        attribute float aSeed;
+        attribute float aKind;
+        varying vec4 vFacade;
+        varying vec3 vObjNormal;
+        varying float vSeed;
+        varying float vKind;`,
+      )
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        vFacade = aFacade;
+        vObjNormal = normal;
+        vSeed = aSeed;
+        vKind = aKind;`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+        uniform float uNight;
+        varying vec4 vFacade;
+        varying vec3 vObjNormal;
+        varying float vSeed;
+        varying float vKind;
+        ${HASH_GLSL}`,
+      )
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        vec3 cmN = normalize(vObjNormal);
+        // Hash inputs are exact integers (see createBuildingMaterial).
+        float cmSeed = floor(vSeed * 997.0 + 0.5);
+        float cmRoof = step(0.5, cmN.y);
+        float cmAlong = vFacade.x;
+        float cmY = vFacade.y;
+        float cmWall = vFacade.z;
+        float cmH = vFacade.w;
+        float cmFace = floor(cmWall * 3.7 + 0.5);
+        float cmOffice = step(1.5, vKind) * step(vKind, 2.5);
+        float cmShops = step(0.5, vKind) * step(vKind, 1.5);
+        float cmPlain = step(2.5, vKind) * step(vKind, 4.5);
+        float cmFloorH = cmOffice > 0.5 ? 3.6 : 3.1;
+        float cmBay0 = cmOffice > 0.5 ? 1.6 : (vKind > 4.5 ? 3.6 : mix(2.4, 3.4, fract(cmSeed * 0.1371)));
+        // Roofs carry wall length 0: keep the division finite (NaN would blacken the whole roof).
+        float cmBay = max(cmWall, 1.0) / max(1.0, floor(cmWall / cmBay0 + 0.5));
+        vec2 cmCell = vec2(cmAlong / cmBay, cmY / cmFloorH);
+        vec2 cmF = fract(cmCell);
+        vec2 cmId = floor(cmCell);
+        float cmGround = step(cmY, cmFloorH) * (1.0 - cmRoof);
+        float cmTop = step(cmH - 0.7, cmY);
+        float cmEdge = step(0.5, cmAlong) * step(cmAlong, cmWall - 0.5) * step(2.2, cmWall);
+        float cmWin;
+        if (cmOffice > 0.5) {
+          cmWin = step(0.05, cmF.x) * step(cmF.y, 0.9);
+        } else if (vKind > 4.5) {
+          // Institutional: long window bands.
+          cmWin = step(0.08, cmF.x) * step(cmF.x, 0.92) * step(0.35, cmF.y) * step(cmF.y, 0.75);
+        } else {
+          cmWin = step(0.2, cmF.x) * step(cmF.x, 0.8) * step(0.3, cmF.y) * step(cmF.y, 0.78);
+        }
+        cmWin *= (1.0 - cmRoof) * step(0.0, cmY) * (1.0 - cmTop) * cmEdge * (1.0 - cmGround * cmShops) * (1.0 - cmPlain);
+        // Industrial sheds: a clerestory strip under the eaves.
+        float cmClere = step(2.5, vKind) * step(vKind, 3.5) * step(cmH - 1.6, cmY) * step(cmY, cmH - 0.9) * (1.0 - cmRoof) * cmEdge;
+        float cmRnd = cmHash(cmId + vec2(cmSeed, cmFace * 17.0));
+        vec3 cmGlass = cmOffice > 0.5 ? vec3(0.30, 0.40, 0.48) : vec3(0.13, 0.16, 0.2);
+        float cmWeather = 0.9 + 0.1 * cmHash(vec2(floor(cmAlong * 0.6), cmSeed + 3.0));
+        vec3 cmBase = diffuseColor.rgb * cmWeather;
+        // Roofs: weathered concrete, a touch darker; the plinth below ground level darker still.
+        cmBase = mix(cmBase, mix(cmBase, vec3(0.62, 0.6, 0.56), 0.55) * 0.82, cmRoof);
+        cmBase *= mix(1.0, 0.72, step(cmY, 0.35) * (1.0 - cmRoof));
+        float cmShop = cmGround * cmShops * cmEdge;
+        float cmSign = cmShop * step(2.35, cmY) * step(cmY, 3.05);
+        float cmOpening = cmShop * step(0.0, cmY) * step(cmY, 2.3) * step(0.06, fract(cmAlong / 4.2)) * step(fract(cmAlong / 4.2), 0.94);
+        vec3 cmSignCol = vec3(0.75, 0.16, 0.14);
+        float cmSr = cmHash(vec2(floor(cmAlong / 4.2), cmSeed + cmFace + 7.0));
+        if (cmSr > 0.75) cmSignCol = vec3(0.12, 0.36, 0.7);
+        else if (cmSr > 0.5) cmSignCol = vec3(0.9, 0.72, 0.14);
+        else if (cmSr > 0.3) cmSignCol = vec3(0.13, 0.52, 0.32);
+        vec3 cmCol = mix(cmBase, cmGlass, max(cmWin, cmClere * 0.8));
+        cmCol = mix(cmCol, vec3(0.09, 0.09, 0.1), cmOpening);
+        cmCol = mix(cmCol, cmSignCol, cmSign);
+        diffuseColor.rgb = cmCol;
+        float cmLit = cmWin * step(0.52, cmRnd) * uNight;
+        float cmShopLit = (cmOpening * 0.6 + cmSign * 0.9) * uNight;
+        vec3 cmLitCol = mix(vec3(1.0, 0.78, 0.48), vec3(0.85, 0.92, 1.0), step(0.85, cmRnd));`,
+      )
+      .replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>
+        totalEmissiveRadiance += cmLitCol * cmLit * (0.9 + 0.6 * cmRnd) + mix(vec3(1.0, 0.95, 0.85), cmSignCol * 1.6, cmSign) * cmShopLit;`,
+      );
+  };
+  mat.customProgramCacheKey = () => "cm-footprint-v1";
+  return mat;
+}

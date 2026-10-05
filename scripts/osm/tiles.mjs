@@ -36,6 +36,16 @@ export async function lineTrackPoints() {
       }
     }
   }
+  // The baked real track and stations too (relations can be incomplete, e.g. Line 4 east).
+  try {
+    const net = JSON.parse(await readFile(path.join("src", "data", "network.json"), "utf8"));
+    for (const l of net.lines) {
+      for (const p of l.track) pts.push(p);
+      for (const s of l.stations) pts.push(toLocal(s.lat, s.lon));
+    }
+  } catch {
+    // Not baked yet (first run): relations only.
+  }
   return pts;
 }
 

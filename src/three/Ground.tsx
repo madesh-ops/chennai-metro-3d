@@ -49,8 +49,21 @@ export function Ground({ crossStreets }: { crossStreets: number[] }) {
     return g;
   }, []);
 
+  // The corridor road runs only under the viaduct; over tunnels the real streets (world tiles) take over.
+  const corridor = useMemo(() => {
+    const out: [number, number][] = [];
+    const railAt = route.profile.railAt;
+    for (let d = range[0]; d < range[1]; d += 5) {
+      if (railAt(d) < 4) continue;
+      const last = out[out.length - 1];
+      if (last && d - last[1] <= 5.01) last[1] = Math.min(range[1], d + 5);
+      else out.push([d, Math.min(range[1], d + 5)]);
+    }
+    return out;
+  }, [route.profile, range]);
+
   const roads = useMemo(() => {
-    return chunkRanges(range[0], range[1], 1000).map(([a, b]) => {
+    return corridor.flatMap(([c0, c1]) => chunkRanges(c0, c1, 1000)).map(([a, b]) => {
       const road = sweepProfile(alignment, a, b, 6, [
         { l: ROAD.halfWidth, y: 0.03 },
         { l: -ROAD.halfWidth, y: 0.03 },
@@ -73,7 +86,7 @@ export function Ground({ crossStreets }: { crossStreets: number[] }) {
       }
       return { key: `${a}`, road, median, paths: mergeGeometries(paths)! };
     });
-  }, [alignment, range]);
+  }, [alignment, corridor]);
 
   // Street and Mount–Poonamallee Road beneath the Line 5 branch.
   const branchRoads = useMemo(() => {

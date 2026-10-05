@@ -32,7 +32,7 @@ import { createHumanMaterial, crowdMesh, CROWD_VARIANTS, pickColours, type Crowd
 
 const CHUNK = 800;
 
-function palmGeometry(): BufferGeometry {
+export function palmGeometry(): BufferGeometry {
   // Eight drooping fronds around a small crown.
   const parts: BufferGeometry[] = [];
   for (let i = 0; i < 8; i++) {
@@ -64,7 +64,7 @@ function poleGeometry(): BufferGeometry {
  * Shop signboards: one material for every board, sampling its own cell of
  * the sign atlas (per-instance aCell) and glowing softly at night.
  */
-function createSignMaterial() {
+export function createSignMaterial() {
   const glow = { value: 0 };
   const mat = new MeshStandardMaterial({ color: "#ffffff", roughness: 0.65, metalness: 0 });
   mat.visible = false; // until the atlas is drawn (fonts must load first)
@@ -294,7 +294,7 @@ export function City({ crossStreets, shadows }: { crossStreets: number[]; shadow
       // Generate as many chunks as fit in ~12 ms, then yield to the browser.
       while (i < ranges.length && performance.now() - t0 < 12) {
         const [a, b] = ranges[i++];
-        out.push(generateCityChunk(route, a, b, quality, crossStreets));
+        out.push(generateCityChunk(route, a, b, quality, crossStreets, true));
       }
       progressRef.current?.("environment", i / ranges.length);
       if (i < ranges.length) raf = requestAnimationFrame(work);
