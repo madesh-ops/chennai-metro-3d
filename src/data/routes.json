@@ -47,6 +47,21 @@
       ],
       "status": "Under construction. Shares the Arcot Road double-decker with Line 4 (upper deck) between Alapakkam and Alwarthirunagar.",
       "source": "Wikipedia — Red Line (Chennai Metro)"
+    },
+    {
+      "id": "line-1",
+      "name": "Line 1",
+      "corridor": "Corridor 1",
+      "colourName": "Blue Line",
+      "termini": [
+        "Wimco Nagar Depot",
+        "Chennai International Airport"
+      ],
+      "status": "Open.",
+      "source": "Wikipedia — Blue Line (Chennai Metro); OpenStreetMap route relation",
+      "colour": "#3281C4",
+      "colourNote": "Colour from the OpenStreetMap route relation.",
+      "lengthKm": 31.4
     }
   ],
   "routes": [
@@ -103,6 +118,327 @@
           }
         ],
         "note": "Intermediate fares (Rs 20–30) were reported by distance band; CMRL is to publish the full chart after inauguration.",
+        "source": "dtnext-fares",
+        "bands": {
+          "status": "approximate",
+          "note": "CMRL's distance-based fare chart (paper / token fares). Consistent with the published Line 4 range of Rs 10–40 for its 14.64 km; CMRL's own fare page could not be retrieved, so the chart is taken from fare guides that agree with each other.",
+          "source": "TrackMyMetro — Chennai Metro fare table (https://trackmymetro.com/chennai-metro/); RailTravels — Chennai Metro Rail fare chart (https://railtravels.org/chennai-metro-rail-fare-chart/)",
+          "slabs": [
+            {
+              "upToKm": 2,
+              "fare": 10
+            },
+            {
+              "upToKm": 5,
+              "fare": 20
+            },
+            {
+              "upToKm": 12,
+              "fare": 30
+            },
+            {
+              "upToKm": 21,
+              "fare": 40
+            },
+            {
+              "upToKm": null,
+              "fare": 50
+            }
+          ]
+        },
+        "digitalDiscount": {
+          "percent": 20,
+          "status": "verified",
+          "appliesTo": "Mobile QR tickets (single, return, group, trip passes) via the CMRL app, WhatsApp, Paytm and PhonePe, and the Singara Chennai (NCMC) card. Not paper QR tickets bought at the counter.",
+          "source": "CMRL on X — 'CMRL offers a 20% discount on Metro Travel Card, Mobile QR Code ticketing … and NCMC Card' (https://x.com/cmrlofficial/status/1868879444649074806); DT Next — Singara Chennai card (https://www.dtnext.in/news/chennai/cmrl-introduces-improved-method-of-availing-singara-chennai-card-809423)"
+        }
+      }
+    },
+    {
+      "id": "line-1-wimco-nagar-depot-airport",
+      "line": "line-1",
+      "name": "Corridor 1",
+      "title": "Wimco Nagar Depot — Chennai Airport",
+      "stationIds": [
+        "wimco-nagar-depot",
+        "wimco-nagar",
+        "thiruvottriyur",
+        "thiruvottiyur-theradi",
+        "kaladipet",
+        "tollgate",
+        "new-washermanpet",
+        "tondiarpet",
+        "sir-theagaraya-college",
+        "washermanpet",
+        "mannadi",
+        "high-court",
+        "central",
+        "government-estate",
+        "lic",
+        "thousand-lights",
+        "ag-dms",
+        "teynampet",
+        "nandanam",
+        "saidapet",
+        "little-mount",
+        "guindy",
+        "alandur",
+        "nanganallur-road",
+        "meenambakkam",
+        "chennai-international-airport"
+      ],
+      "lengthKm": 32.1,
+      "lengthSource": "Wikipedia (published route length)",
+      "status": "open",
+      "statusLabel": "Open",
+      "openingDate": "2015-06-29",
+      "servedStationCount": 26,
+      "passedStationCount": 0,
+      "headwayMinutes": 6,
+      "trainsInService": 0,
+      "operatingHours": "05:00–23:00",
+      "reportedJourneyMinutes": null,
+      "fares": {
+        "currency": "INR",
+        "min": 10,
+        "max": 50,
+        "examples": [],
+        "note": "CMRL's city-wide distance-band fares; examples not yet checked for this line.",
+        "source": "dtnext-fares",
+        "bands": {
+          "status": "approximate",
+          "note": "CMRL's distance-based fare chart (paper / token fares). Consistent with the published Line 4 range of Rs 10–40 for its 14.64 km; CMRL's own fare page could not be retrieved, so the chart is taken from fare guides that agree with each other.",
+          "source": "TrackMyMetro — Chennai Metro fare table (https://trackmymetro.com/chennai-metro/); RailTravels — Chennai Metro Rail fare chart (https://railtravels.org/chennai-metro-rail-fare-chart/)",
+          "slabs": [
+            {
+              "upToKm": 2,
+              "fare": 10
+            },
+            {
+              "upToKm": 5,
+              "fare": 20
+            },
+            {
+              "upToKm": 12,
+              "fare": 30
+            },
+            {
+              "upToKm": 21,
+              "fare": 40
+            },
+            {
+              "upToKm": null,
+              "fare": 50
+            }
+          ]
+        },
+        "digitalDiscount": {
+          "percent": 20,
+          "status": "verified",
+          "appliesTo": "Mobile QR tickets (single, return, group, trip passes) via the CMRL app, WhatsApp, Paytm and PhonePe, and the Singara Chennai (NCMC) card. Not paper QR tickets bought at the counter.",
+          "source": "CMRL on X — 'CMRL offers a 20% discount on Metro Travel Card, Mobile QR Code ticketing … and NCMC Card' (https://x.com/cmrlofficial/status/1868879444649074806); DT Next — Singara Chennai card (https://www.dtnext.in/news/chennai/cmrl-introduces-improved-method-of-availing-singara-chennai-card-809423)"
+        }
+      }
+    },
+    {
+      "id": "line-2-central-st-thomas-mount",
+      "line": "line-2",
+      "name": "Corridor 2",
+      "title": "Chennai Central — St. Thomas Mount",
+      "stationIds": [
+        "central",
+        "egmore",
+        "nehru-park",
+        "kilpauk",
+        "pachaiyappa-s-college",
+        "shenoy-nagar",
+        "anna-nagar-east",
+        "anna-nagar-tower",
+        "thirumangalam",
+        "koyambedu",
+        "cmbt",
+        "arumbakkam",
+        "vadapalani",
+        "ashok-nagar",
+        "ekkattuthangal",
+        "alandur",
+        "st-thomas-mount"
+      ],
+      "lengthKm": 22,
+      "lengthSource": "Wikipedia (published route length)",
+      "status": "open",
+      "statusLabel": "Open",
+      "openingDate": "2015-06-29",
+      "servedStationCount": 17,
+      "passedStationCount": 0,
+      "headwayMinutes": 6,
+      "trainsInService": 0,
+      "operatingHours": "05:00–23:00",
+      "reportedJourneyMinutes": null,
+      "fares": {
+        "currency": "INR",
+        "min": 10,
+        "max": 50,
+        "examples": [],
+        "note": "CMRL's city-wide distance-band fares; examples not yet checked for this line.",
+        "source": "dtnext-fares",
+        "bands": {
+          "status": "approximate",
+          "note": "CMRL's distance-based fare chart (paper / token fares). Consistent with the published Line 4 range of Rs 10–40 for its 14.64 km; CMRL's own fare page could not be retrieved, so the chart is taken from fare guides that agree with each other.",
+          "source": "TrackMyMetro — Chennai Metro fare table (https://trackmymetro.com/chennai-metro/); RailTravels — Chennai Metro Rail fare chart (https://railtravels.org/chennai-metro-rail-fare-chart/)",
+          "slabs": [
+            {
+              "upToKm": 2,
+              "fare": 10
+            },
+            {
+              "upToKm": 5,
+              "fare": 20
+            },
+            {
+              "upToKm": 12,
+              "fare": 30
+            },
+            {
+              "upToKm": 21,
+              "fare": 40
+            },
+            {
+              "upToKm": null,
+              "fare": 50
+            }
+          ]
+        },
+        "digitalDiscount": {
+          "percent": 20,
+          "status": "verified",
+          "appliesTo": "Mobile QR tickets (single, return, group, trip passes) via the CMRL app, WhatsApp, Paytm and PhonePe, and the Singara Chennai (NCMC) card. Not paper QR tickets bought at the counter.",
+          "source": "CMRL on X — 'CMRL offers a 20% discount on Metro Travel Card, Mobile QR Code ticketing … and NCMC Card' (https://x.com/cmrlofficial/status/1868879444649074806); DT Next — Singara Chennai card (https://www.dtnext.in/news/chennai/cmrl-introduces-improved-method-of-availing-singara-chennai-card-809423)"
+        }
+      }
+    },
+    {
+      "id": "line-4-vadapalani-lighthouse",
+      "line": "line-4",
+      "name": "Corridor 4",
+      "title": "Vadapalani — Lighthouse",
+      "stationIds": [
+        "vadapalani",
+        "kodambakkam-powerhouse",
+        "kodambakkam",
+        "panagal-park",
+        "nandanam",
+        "boat-club",
+        "bharathidasan-road",
+        "alwarpet",
+        "thirumayilai",
+        "kutchery-road",
+        "lighthouse"
+      ],
+      "lengthKm": 10.68,
+      "lengthSource": "OpenStreetMap track length (network.json)",
+      "status": "under-construction",
+      "statusLabel": "Under construction · preview ride",
+      "openingDate": "",
+      "servedStationCount": 11,
+      "passedStationCount": 0,
+      "headwayMinutes": 10,
+      "trainsInService": 0,
+      "operatingHours": "Not yet operating",
+      "reportedJourneyMinutes": null,
+      "fares": {
+        "currency": "INR",
+        "min": 10,
+        "max": 50,
+        "examples": [],
+        "note": "CMRL's city-wide distance-band fares; examples not yet checked for this line.",
+        "source": "dtnext-fares",
+        "bands": {
+          "status": "approximate",
+          "note": "CMRL's distance-based fare chart (paper / token fares). Consistent with the published Line 4 range of Rs 10–40 for its 14.64 km; CMRL's own fare page could not be retrieved, so the chart is taken from fare guides that agree with each other.",
+          "source": "TrackMyMetro — Chennai Metro fare table (https://trackmymetro.com/chennai-metro/); RailTravels — Chennai Metro Rail fare chart (https://railtravels.org/chennai-metro-rail-fare-chart/)",
+          "slabs": [
+            {
+              "upToKm": 2,
+              "fare": 10
+            },
+            {
+              "upToKm": 5,
+              "fare": 20
+            },
+            {
+              "upToKm": 12,
+              "fare": 30
+            },
+            {
+              "upToKm": 21,
+              "fare": 40
+            },
+            {
+              "upToKm": null,
+              "fare": 50
+            }
+          ]
+        },
+        "digitalDiscount": {
+          "percent": 20,
+          "status": "verified",
+          "appliesTo": "Mobile QR tickets (single, return, group, trip passes) via the CMRL app, WhatsApp, Paytm and PhonePe, and the Singara Chennai (NCMC) card. Not paper QR tickets bought at the counter.",
+          "source": "CMRL on X — 'CMRL offers a 20% discount on Metro Travel Card, Mobile QR Code ticketing … and NCMC Card' (https://x.com/cmrlofficial/status/1868879444649074806); DT Next — Singara Chennai card (https://www.dtnext.in/news/chennai/cmrl-introduces-improved-method-of-availing-singara-chennai-card-809423)"
+        }
+      }
+    },
+    {
+      "id": "line-5-madhavaram-sholinganallur",
+      "line": "line-5",
+      "name": "Corridor 5",
+      "title": "Madhavaram Milk Colony — Sholinganallur",
+      "stationIds": [
+        "madhavaram-milk-colony",
+        "madhavaram-depot",
+        "assissi-nagar",
+        "manjampakkam",
+        "velmurugan-nagar",
+        "madhavaram-bus-terminal",
+        "shastri-nagar",
+        "retteri-junction",
+        "kolathur",
+        "srinivasa-nagar",
+        "villivakkam",
+        "koyambedu",
+        "koyambedu-market",
+        "natesan-nagar",
+        "virugambakkam-north",
+        "alwarthirunagar",
+        "valasaravakkam",
+        "karambakkam",
+        "alapakkam",
+        "mugalivakkam",
+        "ramapuram",
+        "manapakkam",
+        "chennai-trade-centre",
+        "butt-road",
+        "alandur",
+        "st-thomas-mount",
+        "sholinganallur"
+      ],
+      "lengthKm": 44.76,
+      "lengthSource": "OpenStreetMap track length (network.json)",
+      "status": "under-construction",
+      "statusLabel": "Under construction · preview ride",
+      "openingDate": "",
+      "servedStationCount": 27,
+      "passedStationCount": 0,
+      "headwayMinutes": 10,
+      "trainsInService": 0,
+      "operatingHours": "Not yet operating",
+      "reportedJourneyMinutes": null,
+      "fares": {
+        "currency": "INR",
+        "min": 10,
+        "max": 50,
+        "examples": [],
+        "note": "CMRL's city-wide distance-band fares; examples not yet checked for this line.",
         "source": "dtnext-fares",
         "bands": {
           "status": "approximate",

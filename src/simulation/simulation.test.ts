@@ -430,3 +430,15 @@ test("a neighbourhood around an unknown landmark produces a readable error", () 
   (broken.tracks as { neighbourhoods?: { around: string }[] }).neighbourhoods![0].around = "nowhere";
   assert.throws(() => buildRouteModel(broken), RouteDataError);
 });
+
+test("every line builds from the real network and a train can run it end to end", () => {
+  for (const r of data.routes.routes) {
+    const route = buildRouteModel(data, r.id);
+    assert.ok(route.stations.length >= 10, `${r.id}: ${route.stations.length} stations`);
+    const modelled = (route.endDistance - route.startDistance) / 1000;
+    assert.ok(Math.abs(modelled - r.lengthKm) / r.lengthKm < 0.07, `${r.id}: ${modelled.toFixed(2)} km vs ${r.lengthKm} km`);
+    const journey = planJourney(route, route.stops[0].id, route.stops.at(-1)!.id);
+    const run = simulateJourney(journey, route.operations);
+    assert.ok(run.duration > 600 && run.duration < 7200, `${r.id}: ${(run.duration / 60).toFixed(0)} min`);
+  }
+});

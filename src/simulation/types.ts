@@ -132,7 +132,8 @@ export interface RawRoute {
   headwayMinutes: number;
   trainsInService: number;
   operatingHours: string;
-  reportedJourneyMinutes: number;
+  /** Published end-to-end time, or null where none has been reported. */
+  reportedJourneyMinutes: number | null;
   fares: {
     currency: string;
     min: number;

@@ -33,7 +33,8 @@ export interface RouteSummary {
   headwayMinutes: number;
   trainsInService: number;
   operatingHours: string;
-  reportedJourneyMinutes: number;
+  /** Published end-to-end time, or null where none has been reported. */
+  reportedJourneyMinutes: number | null;
   fareMin: number;
   fareMax: number;
   /** Distance-band fare chart (see simulation/fares.ts) and the digital-ticket discount. */

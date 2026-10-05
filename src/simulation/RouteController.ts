@@ -199,12 +199,14 @@ export function validateBundle(data: DataBundle, routeId?: string): RawRoute {
   if (!route) throw new RouteDataError(`Route "${routeId}" is not defined in routes.json.`);
 
   const byId = new Map(data.stations.stations.map((s) => [s.id, s]));
+  // Positions come from network.json when the line is there.
+  const onNetwork = Boolean(data.network?.lines.some((l) => l.id === route.line));
   for (const id of route.stationIds) {
     const st = byId.get(id);
     if (!st) throw new RouteDataError(`Route "${route.id}" lists unknown station "${id}".`);
     if (st.service !== "stop" && st.service !== "pass")
       throw new RouteDataError(`Station "${id}" has invalid service "${String(st.service)}".`);
-    if (!st.coordinates && !st.placement)
+    if (!st.coordinates && !st.placement && !onNetwork)
       throw new RouteDataError(`Station "${id}" has neither coordinates nor a placement rule.`);
     if (st.placement) {
       for (const ref of st.placement.between) {
@@ -218,12 +220,11 @@ export function validateBundle(data: DataBundle, routeId?: string): RawRoute {
   if (!data.routes.lines.find((l) => l.id === route.line))
     throw new RouteDataError(`Route "${route.id}" references unknown line "${route.line}".`);
   for (const sec of data.tracks.sections) {
-    if (!route.stationIds.includes(sec.from) || !route.stationIds.includes(sec.to))
-      throw new RouteDataError(`Speed section ${sec.from} → ${sec.to} references a station outside the route.`);
+    if (!byId.has(sec.from) || !byId.has(sec.to)) throw new RouteDataError(`Speed section ${sec.from} → ${sec.to} references an unknown station.`);
   }
   const roadIds = new Set<string>();
   for (const r of data.tracks.structures.sideRoads ?? []) {
-    if (!route.stationIds.includes(r.atStation)) throw new RouteDataError(`Road "${r.id}" starts at "${r.atStation}", which is not on route "${route.id}".`);
+    if (!byId.has(r.atStation)) throw new RouteDataError(`Road "${r.id}" starts at unknown station "${r.atStation}".`);
     if (!Array.isArray(r.path) || r.path.length < 2 || r.path[0][0] !== 0 || r.path[0][1] !== 0)
       throw new RouteDataError(`Road "${r.id}" needs a path of at least two points starting at [0, 0] (the junction).`);
     if (!(r.widthM > 0 && r.westM >= 0)) throw new RouteDataError(`Road "${r.id}" needs a positive width.`);
@@ -261,8 +262,7 @@ export function validateBundle(data: DataBundle, routeId?: string): RawRoute {
     const pos = lm.position;
     if (!pos) throw new RouteDataError(`Landmark "${lm.id}" has a model but no position.`);
     if ("station" in pos) {
-      if (!route.stationIds.includes(pos.station))
-        throw new RouteDataError(`Landmark "${lm.id}" is placed relative to "${pos.station}", which is not on route "${route.id}".`);
+      if (!byId.has(pos.station)) throw new RouteDataError(`Landmark "${lm.id}" is placed relative to unknown station "${pos.station}".`);
     } else if (!(Number.isFinite(pos.lat) && Number.isFinite(pos.lon))) {
       throw new RouteDataError(`Landmark "${lm.id}" has invalid coordinates.`);
     }
@@ -365,7 +365,8 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
       nameTaVerified: s.nameTaVerified,
       altNames: s.altNames ?? [],
       type: s.type,
-      service: s.service,
+      // Preview rides on lines still under construction call at every station.
+      service: route.status === "under-construction" ? "stop" : s.service,
       terminus: Boolean(s.terminus),
       interchange: s.interchange ?? [],
       notes: s.notes ?? "",
@@ -381,7 +382,7 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
   });
   const stationById = new Map(stations.map((s) => [s.id, s]));
 
-  const sections: SpeedSection[] = tracks.sections.map((sec) => {
+  const sections: SpeedSection[] = tracks.sections.filter((sec) => stationById.has(sec.from) && stationById.has(sec.to)).map((sec) => {
     const a = stationById.get(sec.from)!.distance;
     const b = stationById.get(sec.to)!.distance;
     return { start: Math.min(a, b), end: Math.max(a, b), maxSpeed: sec.maxSpeedKmh * KMH, status: sec.status };
@@ -445,7 +446,9 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
   const placedLandmarks: LandmarkPlacement[] = [];
   const rightZ = (d: number) => alignment.right(d).z;
   const sideSign = (side: "north" | "south", d: number) => ((side === "south") === rightZ(d) > 0 ? 1 : -1);
-  for (const lm of data.landmarks?.landmarks ?? []) {
+  // Only landmarks near this route's stations.
+  const routeLandmarks = (data.landmarks?.landmarks ?? []).filter((lm) => stationById.has(lm.nearStation));
+  for (const lm of routeLandmarks) {
     if (!lm.model || !lm.position) continue;
     const pos = lm.position;
     let distance: number;
@@ -479,6 +482,7 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
   // then follow the traced path.
   const sideRoads = new Map<string, SideRoadModel>();
   for (const raw of tracks.structures.sideRoads ?? []) {
+    if (!stationById.has(raw.atStation)) continue;
     const junctionD = stationById.get(raw.atStation)!.distance;
     const netRoad = net ? data.network?.roads?.[raw.id] : undefined;
     if (netRoad) {
@@ -587,7 +591,8 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
   // Neighbourhoods: a stretch either side of their landmark, with a style per side of the road.
   const neighbourhoods: NeighbourhoodModel[] = [];
   for (const raw of tracks.neighbourhoods ?? []) {
-    const lm = placedLandmarks.find((p) => p.landmark.id === raw.around)!;
+    const lm = placedLandmarks.find((p) => p.landmark.id === raw.around);
+    if (!lm) continue;
     const northSign = sideSign("north", lm.distance);
     neighbourhoods.push({
       raw,
@@ -609,7 +614,7 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
     if (x > len - c) return h - (g * (len - x) * (len - x)) / (2 * c);
     return g * (x - c / 2);
   };
-  const flyovers: FlyoverModel[] = (tracks.structures.flyovers ?? []).map((raw) => {
+  const flyovers: FlyoverModel[] = (tracks.structures.flyovers ?? []).filter((raw) => sideRoads.has(raw.road)).map((raw) => {
     const road = sideRoads.get(raw.road)!;
     // Centred on the flyover's span in OpenStreetMap when baked, keeping its published length.
     const osmSpan = net ? data.network?.roads?.[raw.road]?.features?.[raw.id] : undefined;
@@ -692,7 +697,7 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
       originBoardingSeconds: operations.originBoardingSeconds,
       terminusAlightSeconds: operations.terminusAlightSeconds,
     },
-    landmarks: data.landmarks?.landmarks ?? [],
+    landmarks: routeLandmarks,
     placedLandmarks,
     line5Branch,
     line5Branches,
