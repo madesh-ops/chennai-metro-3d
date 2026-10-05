@@ -5,29 +5,6 @@
   },
   "landmarks": [
     {
-      "id": "poonamallee-depot",
-      "name": "Poonamallee Depot",
-      "nameTa": "பூந்தமல்லி மெட்ரோ பணிமனை",
-      "nameTaVerified": false,
-      "kind": "depot",
-      "nearStation": "poonamallee-bypass",
-      "description": "Phase II rolling-stock depot (DPT-01). Trial runs of the Alstom trains began from here in March 2025.",
-      "source": "The Metro Rail Guy — 'Chennai Metro Phase 2's Trial Runs Begin from Poonamallee Depot' (Mar 2025)",
-      "model": {
-        "type": "depot",
-        "along": 300,
-        "depth": 140
-      },
-      "position": {
-        "station": "poonamallee-bypass",
-        "alongM": -40,
-        "side": "north",
-        "offsetM": 110
-      },
-      "positionQuality": "approximate",
-      "positionSource": "Wikipedia — Poonamallee Bypass metro station (depot beside the station, 24 tracks). Footprint and side not published."
-    },
-    {
       "id": "poonamallee-bus-stand",
       "name": "Poonamallee Bus Stand",
       "nameTa": "பூந்தமல்லி பேருந்து நிலையம்",
