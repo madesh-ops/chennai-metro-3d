@@ -110,8 +110,8 @@ export default function AboutPage() {
               <li className="border-l-2 border-line pl-3">Geist and Geist Mono by Vercel — SIL Open Font License 1.1</li>
               <li className="border-l-2 border-line pl-3">Noto Sans Tamil by Google — SIL Open Font License 1.1</li>
               <li className="border-l-2 border-line pl-3">
-                No OpenStreetMap data is bundled yet. If OSM building or road geometry is added later, it must carry
-                “© OpenStreetMap contributors” (ODbL).
+                Metro track, station positions and tunnels/viaducts: map data © OpenStreetMap contributors, available
+                under the Open Database Licence (ODbL) — openstreetmap.org/copyright
               </li>
             </ul>
           </div>

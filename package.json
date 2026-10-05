@@ -11,7 +11,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types src/simulation/*.test.ts src/three/*.test.ts"
+    "test": "node --test --experimental-strip-types src/simulation/*.test.ts src/three/*.test.ts",
+    "osm:fetch": "node scripts/osm/fetch.mjs",
+    "osm:bake": "node scripts/osm/bake-network.mjs"
   },
   "engines": {
     "node": ">=20.9"

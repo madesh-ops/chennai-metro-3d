@@ -7,3 +7,4 @@ next-env.d.ts
 test-results/
 screenshots/
 .verify/
+data-cache/
