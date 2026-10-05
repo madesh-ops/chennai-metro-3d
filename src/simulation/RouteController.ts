@@ -6,6 +6,8 @@ import type {
   DataBundle,
   OperationsParams,
   RawBranch,
+  RawNeighbourhood,
+  NeighbourhoodStyle,
   RawFlyover,
   RawLandmark,
   RawSideRoad,
@@ -84,18 +86,20 @@ export interface LandmarkPlacement {
 /** A viaduct branching off the corridor (Line 5 leaving the double-decker). */
 export interface BranchModel {
   raw: RawBranch;
+  /** Which end of the double-decker it leaves from. */
+  end: "west" | "east";
   line: RawLine | null;
   /** Branch centreline, distance 0 at the junction. */
   alignment: Alignment;
-  /** Corridor distance where it leaves (the upper deck's west end). */
+  /** Corridor distance where it leaves (the upper deck's end). */
   junction: number;
   /** World points of the traced path (for roads and clearances). */
   points: Vec2[];
   /** Rail height at branch distance s. */
   railAt: (s: number) => number;
-  /** Branch distance where it lands on its side road, and that road. */
+  /** Branch distance where it lands on its side road (or its end, for a branch that runs on), and that road. */
   landS: number;
-  road: SideRoadModel;
+  road: SideRoadModel | null;
 }
 
 /** A road leaving the corridor at a junction (Mount–Poonamallee Road, Kundrathur Road). */
@@ -127,7 +131,15 @@ export interface FlyoverModel {
   corridorHeightAt: (d: number) => number;
 }
 
-/** How far the upper deck reaches beyond the double-decker's end stations. */
+export interface NeighbourhoodModel {
+  raw: RawNeighbourhood;
+  from: number;
+  to: number;
+  right: NeighbourhoodStyle | null;
+  left: NeighbourhoodStyle | null;
+}
+
+/** How far the upper deck reaches beyond the double-decker's end stations, unless a branch says otherwise. */
 export const UPPER_DECK_OVERHANG = 160;
 
 export interface RouteModel {
@@ -147,7 +159,11 @@ export interface RouteModel {
   officialLengthM: number;
   sections: SpeedSection[];
   defaultMaxSpeed: number;
-  doubleDecker: { start: number; end: number; lengthKm: number } | null;
+  /**
+   * Double-decker between its end stations, plus where the upper deck itself
+   * starts and ends (it overhangs the end stations to where Line 5 leaves).
+   */
+  doubleDecker: { start: number; end: number; lengthKm: number; upperStart: number; upperEnd: number } | null;
   projection: LocalProjection;
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   params: RouteParams;
@@ -156,8 +172,12 @@ export interface RouteModel {
   landmarks: RawLandmark[];
   /** Landmarks with a 3D model, placed along the corridor. */
   placedLandmarks: LandmarkPlacement[];
-  /** Line 5 viaduct leaving the double-decker towards Mount–Poonamallee Road, if defined. */
+  /** Line 5 viaduct leaving the double-decker's west end towards Mount–Poonamallee Road, if defined. */
   line5Branch: BranchModel | null;
+  /** Every Line 5 branch (west towards Mount–Poonamallee Road, east towards Virugambakkam). */
+  line5Branches: BranchModel[];
+  /** Stretches whose surroundings follow a traced pattern, with a style per side (+1 right, -1 left). */
+  neighbourhoods: NeighbourhoodModel[];
   /** Road flyovers (the MGR flyover at Porur Junction). */
   flyovers: FlyoverModel[];
   /** Roads leaving the corridor at junctions, by id. */
@@ -216,12 +236,25 @@ export function validateBundle(data: DataBundle, routeId?: string): RawRoute {
     if (Math.abs(len - f.lengthM.value) > 1) throw new RouteDataError(`Flyover "${f.id}": its ends are ${len} m apart but its length is ${f.lengthM.value} m.`);
     if (2 * ramp > len) throw new RouteDataError(`Flyover "${f.id}": its two ${ramp} m ramps do not fit in ${len} m.`);
   }
-  const branch = data.tracks.structures.doubleDecker?.line5West;
-  if (branch) {
+  const ddRaw = data.tracks.structures.doubleDecker;
+  for (const [end, branch] of [
+    ["west", ddRaw?.line5West],
+    ["east", ddRaw?.line5East],
+  ] as const) {
+    if (!branch) continue;
     const arc = branch.peelArc;
     if (!(arc?.radiusM > 0 && arc.turnDeg > 0 && arc.turnDeg < 180))
-      throw new RouteDataError("The Line 5 branch needs a peel-away arc with a positive radius and a turn between 0 and 180 degrees.");
-    if (!roadIds.has(branch.landsOn.road)) throw new RouteDataError(`The Line 5 branch lands on unknown road "${branch.landsOn.road}".`);
+      throw new RouteDataError(`The Line 5 ${end} branch needs a peel-away arc with a positive radius and a turn between 0 and 180 degrees.`);
+    if (branch.landsOn) {
+      if (!roadIds.has(branch.landsOn.road)) throw new RouteDataError(`The Line 5 ${end} branch lands on unknown road "${branch.landsOn.road}".`);
+    } else if (!(branch.runOn && branch.runOn.straightM > 0)) {
+      throw new RouteDataError(`The Line 5 ${end} branch needs either a side road to land on or a straight run-on length.`);
+    }
+  }
+  const drawn = new Set((data.landmarks?.landmarks ?? []).filter((lm) => lm.model && lm.position).map((lm) => lm.id));
+  for (const n of data.tracks.neighbourhoods ?? []) {
+    if (!drawn.has(n.around)) throw new RouteDataError(`Neighbourhood "${n.id}" is around "${n.around}", which is not a drawn landmark.`);
+    if (!(n.halfLengthM > 0)) throw new RouteDataError(`Neighbourhood "${n.id}" needs a positive half-length.`);
   }
   for (const lm of data.landmarks?.landmarks ?? []) {
     if (!byId.has(lm.nearStation)) throw new RouteDataError(`Landmark "${lm.id}" is near unknown station "${lm.nearStation}".`);
@@ -324,7 +357,15 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
   if (dd && stationById.get(dd.from) && stationById.get(dd.to)) {
     const a = stationById.get(dd.from)!.distance;
     const b = stationById.get(dd.to)!.distance;
-    doubleDecker = { start: Math.min(a, b), end: Math.max(a, b), lengthKm: dd.lengthKm };
+    const start = Math.min(a, b);
+    const end = Math.max(a, b);
+    doubleDecker = {
+      start,
+      end,
+      lengthKm: dd.lengthKm,
+      upperStart: start - (dd.line5West?.leavesPastStationM ?? UPPER_DECK_OVERHANG),
+      upperEnd: end + (dd.line5East?.leavesPastStationM ?? UPPER_DECK_OVERHANG),
+    };
   }
 
   const bounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
@@ -384,11 +425,11 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
     sideRoads.set(raw.id, { raw, alignment: road, junctionS, junctionD, width: raw.widthM });
   }
 
-  // Line 5 branch: peels off the upper deck's west end, then lands on its side road.
-  let line5Branch: BranchModel | null = null;
-  const rawBranch = dd?.line5West;
-  if (rawBranch && doubleDecker) {
-    const junction = doubleDecker.start - UPPER_DECK_OVERHANG;
+  // Line 5 branches: peel off the upper deck's ends, then land on a side road or run on.
+  const line5Branches: BranchModel[] = [];
+  const buildBranch = (rawBranch: RawBranch, end: "west" | "east"): BranchModel => {
+    const dir = end === "west" ? -1 : 1;
+    const junction = end === "west" ? doubleDecker!.upperStart : doubleDecker!.upperEnd;
     const at = frameAt(junction, rawBranch.side);
     // Sample the arc densely so the spline through it stays a true arc (no kink, no tightening).
     const { radiusM: R, turnDeg } = rawBranch.peelArc;
@@ -397,10 +438,19 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
     const points: Vec2[] = [];
     for (let k = 0; k <= n; k++) {
       const th = (turn * k) / n;
-      points.push(at(-R * Math.sin(th), R * (1 - Math.cos(th))));
+      points.push(at(dir * R * Math.sin(th), R * (1 - Math.cos(th))));
     }
-    const road = sideRoads.get(rawBranch.landsOn.road)!;
-    for (let s = road.junctionS + rawBranch.landsOn.fromJunctionM; s <= road.alignment.length; s += 60) points.push(road.alignment.point(s));
+    const road = rawBranch.landsOn ? sideRoads.get(rawBranch.landsOn.road)! : null;
+    if (road && rawBranch.landsOn) {
+      for (let s = road.junctionS + rawBranch.landsOn.fromJunctionM; s <= road.alignment.length; s += 60) points.push(road.alignment.point(s));
+    } else if (rawBranch.runOn) {
+      // Straight on in the arc's final direction.
+      const endAlong = dir * R * Math.sin(turn);
+      const endLat = R * (1 - Math.cos(turn));
+      const dAlong = dir * Math.cos(turn);
+      const dLat = Math.sin(turn);
+      for (let s = 20; s <= rawBranch.runOn.straightM; s += 20) points.push(at(endAlong + dAlong * s, endLat + dLat * s));
+    }
     const upper = tracks.alignment.railLevelM.value + dd!.upperDeckHeightAboveRailM.value;
     const lower = tracks.alignment.railLevelM.value;
     const { fromM, toM } = rawBranch.descent;
@@ -409,17 +459,39 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
       return upper + (lower - upper) * (0.5 - 0.5 * Math.cos(Math.PI * u));
     };
     const branchAlign = new Alignment(points);
-    const land = road.alignment.point(road.junctionS + rawBranch.landsOn.fromJunctionM);
-    line5Branch = {
+    let landS = branchAlign.length;
+    if (road && rawBranch.landsOn) {
+      const land = road.alignment.point(road.junctionS + rawBranch.landsOn.fromJunctionM);
+      landS = branchAlign.project(land.x, land.z, branchAlign.length / 3, branchAlign.length);
+    }
+    return {
       raw: rawBranch,
+      end,
       line: data.routes.lines.find((l) => l.id === rawBranch.line) ?? null,
       alignment: branchAlign,
       junction,
       points,
       railAt,
-      landS: branchAlign.project(land.x, land.z, branchAlign.length / 3, branchAlign.length),
+      landS,
       road,
     };
+  };
+  if (doubleDecker && dd?.line5West) line5Branches.push(buildBranch(dd.line5West, "west"));
+  if (doubleDecker && dd?.line5East) line5Branches.push(buildBranch(dd.line5East, "east"));
+  const line5Branch = line5Branches.find((b) => b.end === "west") ?? null;
+
+  // Neighbourhoods: a stretch either side of their landmark, with a style per side of the road.
+  const neighbourhoods: NeighbourhoodModel[] = [];
+  for (const raw of tracks.neighbourhoods ?? []) {
+    const lm = placedLandmarks.find((p) => p.landmark.id === raw.around)!;
+    const northSign = sideSign("north", lm.distance);
+    neighbourhoods.push({
+      raw,
+      from: lm.distance - raw.halfLengthM,
+      to: lm.distance + raw.halfLengthM,
+      right: (northSign > 0 ? raw.north : raw.south) ?? null,
+      left: (northSign > 0 ? raw.south : raw.north) ?? null,
+    });
   }
 
   // Flyovers: straight-graded ramps with rounded (parabolic) ends up to a level crest.
@@ -502,6 +574,8 @@ export function buildRouteModel(data: DataBundle, routeId?: string): RouteModel 
     landmarks: data.landmarks?.landmarks ?? [],
     placedLandmarks,
     line5Branch,
+    line5Branches,
+    neighbourhoods,
     flyovers,
     sideRoads,
     lastVerified: data.stations.meta.lastVerified,

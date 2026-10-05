@@ -224,6 +224,35 @@ export function mall(along: number, depth: number, height: number, seed: number)
 
 const CAR_COLOURS = ["#f2f2f0", "#c9ccd0", "#8a9096", "#2b2e33", "#7a1f1f", "#1f3c66", "#d9d2c3", "#b03030", "#ffffff"];
 
+/** Angled parking bays in rows across x (one row per z), about six in ten taken by a parked car. */
+function parkedCars(solid: BufferGeometry[], rng: () => number, x0: number, x1: number, rows: number[], angle = 0.5) {
+  for (const rz of rows) {
+    for (let x = x0 + 4; x < x1 - 4; x += 2.9) {
+      const line = new BoxGeometry(0.14, 0.03, 5.4);
+      line.rotateY(angle);
+      line.translate(x, 0.14, rz);
+      solid.push(paint(line, "#e2b524"));
+      if (rng() < 0.62 && x < x1 - 6) {
+        const cx = x + 1.45;
+        const colour = pick(rng, CAR_COLOURS);
+        const parts = [
+          new BoxGeometry(1.75, 0.7, 4.2).translate(0, 0.65, 0),
+          new BoxGeometry(1.6, 0.5, 2.3).translate(0, 1.25, -0.2),
+          new BoxGeometry(1.62, 0.44, 2.2).translate(0, 1.25, -0.2),
+        ];
+        const cols = [colour, colour, "#1b1f24"];
+        parts.forEach((part, k) => {
+          part.rotateY(angle);
+          part.translate(cx, 0.12, rz + rr(rng, -0.2, 0.2));
+          solid.push(paint(part, cols[k]));
+        });
+      }
+    }
+    // Aisle edge line.
+    solid.push(box(x0 + 3, x1 - 3, 0.13, 0.15, rz + 3.2, rz + 3.4, "#e2b524"));
+  }
+}
+
 export function cinema(along: number, depth: number, height: number, seed: number): CommercialModel {
   const rng = mulberry32(seed);
   const solid: BufferGeometry[] = [];
@@ -236,34 +265,13 @@ export function cinema(along: number, depth: number, height: number, seed: numbe
 
   // Car park: paving, yellow diagonal bays, parked cars, gate, booth, boundary wall.
   solid.push(box(-A, A, 0, 0.12, front, lotBack + 2, "#a19d95"));
-  const angle = 0.5;
-  const rows = [front + 10, front + 23, front + 36, front + 49];
-  for (const rz of rows) {
-    if (rz > lotBack - 3) continue;
-    for (let x = -A + 4; x < A - 4; x += 2.9) {
-      const line = new BoxGeometry(0.14, 0.03, 5.4);
-      line.rotateY(angle);
-      line.translate(x, 0.14, rz);
-      solid.push(paint(line, "#e2b524"));
-      if (rng() < 0.62 && x < A - 6) {
-        const cx = x + 1.45;
-        const colour = pick(rng, CAR_COLOURS);
-        const parts = [
-          new BoxGeometry(1.75, 0.7, 4.2).translate(0, 0.65, 0),
-          new BoxGeometry(1.6, 0.5, 2.3).translate(0, 1.25, -0.2),
-          new BoxGeometry(1.62, 0.44, 2.2).translate(0, 1.25, -0.2),
-        ];
-        const cols = [colour, colour, "#1b1f24"];
-        parts.forEach((p, k) => {
-          p.rotateY(angle);
-          p.translate(cx, 0.12, rz + rr(rng, -0.2, 0.2));
-          solid.push(paint(p, cols[k]));
-        });
-      }
-    }
-    // Aisle edge line.
-    solid.push(box(-A + 3, A - 3, 0.13, 0.15, rz + 3.2, rz + 3.4, "#e2b524"));
-  }
+  parkedCars(
+    solid,
+    rng,
+    -A,
+    A,
+    [front + 10, front + 23, front + 36, front + 49].filter((rz) => rz <= lotBack - 3),
+  );
   // Boundary wall with the entry on the right.
   const gate0 = A - 16;
   const gate1 = A - 4;
@@ -325,16 +333,22 @@ export function cinema(along: number, depth: number, height: number, seed: numbe
  * carrying three billboards, a white drum on the right topped by a flared,
  * ribbed crown, the mall's name sign beside the drum, and at street level a
  * row of hoardings over dark shopfronts behind black granite pillars.
+ * Behind the facade (after a satellite view) a deep hall with a flat white
+ * roof runs back from the road, with an open car park beside it.
+ *
+ * The facade is laid out in a 52 m wide design frame and squeezed to `along`;
+ * +x in the design frame ends up on the viewer's right (the drum end).
  */
 export function glassMall(along: number, depth: number, height: number, seed: number): CommercialModel {
   const rng = mulberry32(seed);
   const solid: BufferGeometry[] = [];
   const glass: BufferGeometry[] = [];
   const panels: Panel[] = [];
-  const A = along / 2;
+  const A = 26; // design half-width; scaled to along / 2 at the end
   const D = depth / 2;
   const front = -D;
   const z0 = -D + 8; // building front, behind the forecourt
+  const zb = z0 + 30; // back of the facade block; the hall runs on from here
   const gold = "#e2b32c";
   const white = "#e9edf0";
   const steel = "#b9c0c7";
@@ -359,7 +373,7 @@ export function glassMall(along: number, depth: number, height: number, seed: nu
   const gx0 = -A + 3;
   const gx1 = 10;
   const top = (x: number) => height - 6 + 6 * ((gx1 - x) / (gx1 - gx0)) ** 2;
-  solid.push(box(gx0, gx1, 0, height - 7, z0 + 3, D - 2, "#c9cdd2"));
+  solid.push(box(gx0, gx1, 0, height - 7, z0 + 3, zb, "#c9cdd2"));
   for (let x = gx0; x < gx1 - 0.01; x += 2.8) {
     const x1 = Math.min(gx1, x + 2.8);
     const t = top((x + x1) / 2);
@@ -449,19 +463,50 @@ export function glassMall(along: number, depth: number, height: number, seed: nu
   panels.push({ x: 16, y: height - 6, z: z0 - 2.35, w: 14.2, h: 3.9, texture: "chandra-sign" });
 
   // Right wing: grey block with blue window strips and white fins.
-  solid.push(box(19, A - 0.5, 0, height - 7, z0 + 2, D - 2, "#d4d8dc"));
+  solid.push(box(19, A - 0.5, 0, height - 7, z0 + 2, zb, "#d4d8dc"));
   for (let y = 12; y < height - 9; y += 3.6) {
     glass.push(glassBox(20.5, A - 1.5, y, y + 2.2, z0 + 1.8, z0 + 2.1));
     solid.push(box(19.5, A - 0.5, y + 2.4, y + 2.65, z0 + 0.6, z0 + 2.1, white));
   }
 
   // Roof plant behind the glass front.
-  solid.push(box(-14, -2, height - 7, height - 4.5, z0 + 12, D - 5, "#9aa1a8"));
+  solid.push(box(-14, -2, height - 7, height - 4.5, z0 + 12, zb - 3, "#9aa1a8"));
 
-  // Built with +x to the left of the porthole edge; seen from the street (looking +z)
-  // +x is on the viewer's left, so mirror it to match the photos (portholes left, drum right).
-  for (const p of panels) p.x = -p.x;
-  return { solid: mirrorX(merge(solid)), glass: mirrorX(merge(glass)), panels };
+  // The hall behind (the white roof in the satellite view), narrower than the
+  // facade so the car park fits beside it on the drum (+x) side.
+  const hallH = 16;
+  const hx0 = -A + 1;
+  const hx1 = A - 18;
+  solid.push(box(hx0, hx1, 0, hallH, zb, D - 2, "#cfd3d6"));
+  solid.push(box(hx0 - 0.3, hx1 + 0.3, hallH, hallH + 0.5, zb - 0.3, D - 1.7, "#e9e9e4"));
+  for (const x of [hx0 + 9, hx1 - 9]) solid.push(box(x - 1.6, x + 1.6, hallH + 0.5, hallH + 1.3, zb + 6, D - 8, "#a9c1d3"));
+  for (let z = zb + 8; z < D - 10; z += 14) solid.push(box(-3, 2, hallH + 0.5, hallH + 2.2, z, z + 3.5, "#9aa1a8"));
+  for (let y = 9; y <= 12; y += 3) {
+    solid.push(box(hx0 - 0.05, hx1 + 0.05, y, y + 1.2, zb + 4, D - 6, "#4a5866"));
+  }
+  // Loading bay with shutters at the back.
+  solid.push(box(hx0 + 4, hx0 + 22, 0, 5, D - 2.05, D - 1.95, "#7d848b"));
+  for (let x = hx0 + 5; x < hx0 + 21; x += 5.5) solid.push(box(x, x + 4.5, 0.2, 4.4, D - 1.98, D - 1.9, "#b2b8be"));
+
+  // Open car park beside the hall, with a low wall and a gate to the side lane.
+  solid.push(box(hx1 + 1, A, 0, 0.12, zb, D - 1, "#a19d95"));
+  parkedCars(solid, rng, hx1 + 1, A, [zb + 6, zb + 19, zb + 32, zb + 45, zb + 58].filter((rz) => rz < D - 6));
+  solid.push(box(A - 0.4, A, 0, 1.1, zb, D - 1, "#d9d6cf"));
+  solid.push(box(hx1 + 1, A, 0, 1.1, D - 1.4, D - 1, "#d9d6cf"));
+
+  // Squeeze the 52 m design frame to the real frontage. Built with the drum at +x;
+  // seen from the street (looking +z) +x is on the viewer's left, so also mirror it
+  // to match the photos (portholes left, drum right).
+  const k = along / (2 * A);
+  for (const p of panels) {
+    p.x = -p.x * k;
+    p.w *= k;
+  }
+  const squeeze = (g: BufferGeometry) => {
+    g.scale(k, 1, 1);
+    return mirrorX(g);
+  };
+  return { solid: squeeze(merge(solid)), glass: squeeze(merge(glass)), panels };
 }
 
 /** Mirror a non-indexed geometry in x, keeping its faces pointing outward. */

@@ -79,17 +79,37 @@ export interface RawSideRoad {
   source: string;
 }
 
-/** A viaduct branching off the corridor, peeling away and landing on a side road. */
+/** How the city generator builds up a stretch of one side of the road. */
+export type NeighbourhoodStyle = "dense-low-rise" | "apartment-blocks";
+
+/** A stretch of road around a landmark whose surroundings follow a known pattern (traced from imagery). */
+export interface RawNeighbourhood {
+  id: string;
+  /** Landmark id the stretch is centred on. */
+  around: string;
+  halfLengthM: number;
+  north?: NeighbourhoodStyle;
+  south?: NeighbourhoodStyle;
+  status: string;
+  source: string;
+}
+
+/** A viaduct branching off the corridor, peeling away and landing on a side road or running on. */
 export interface RawBranch {
   line: string;
   /**
-   * Leaves the double-decker on a circular arc: starts heading back along the
-   * corridor (towards the route start) and turns towards `side` by turnDeg.
+   * Leaves the double-decker on a circular arc: starts heading away from the
+   * double-decker along the corridor (back towards the route start at the west
+   * end, onwards at the east end) and turns towards `side` by turnDeg.
    */
   peelArc: { radiusM: number; turnDeg: number; note?: string };
   side: "north" | "south";
-  /** Then follows this side road from the given distance past its junction. */
-  landsOn: { road: string; fromJunctionM: number };
+  /** Then follows this side road from the given distance past its junction… */
+  landsOn?: { road: string; fromJunctionM: number };
+  /** …or runs straight on in the arc's final direction for this many metres. */
+  runOn?: { straightM: number };
+  /** Where it leaves, measured past the double-decker's end station (default: the usual 160 m overhang). */
+  leavesPastStationM?: number;
   /** Rail height falls from the upper deck to normal rail level between these branch distances. */
   descent: { fromM: number; toM: number; status: string };
   /** Street beneath the peel-away curve. */
@@ -147,6 +167,8 @@ export interface Tagged<T> {
 }
 
 export interface RawTracksFile {
+  /** Stretches with a traced neighbourhood pattern (city generator). */
+  neighbourhoods?: RawNeighbourhood[];
   meta: { lastVerified: string; summary: string; sources: Record<string, string> };
   alignment: {
     method: string;
@@ -179,6 +201,8 @@ export interface RawTracksFile {
       source: string;
       /** Upper-deck line leaving the double-decker at its west (from) end. */
       line5West?: RawBranch;
+      /** Upper-deck line leaving the double-decker at its east (to) end. */
+      line5East?: RawBranch;
     };
     /** Road flyovers, carried on side roads. */
     flyovers?: RawFlyover[];

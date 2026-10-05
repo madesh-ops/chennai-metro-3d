@@ -7,7 +7,6 @@ import { CircleGeometry, type Group, MeshBasicMaterial, PlaneGeometry, RingGeome
 import { useScene } from "./SceneContext.tsx";
 import { sweepProfile } from "../utils/geometry.ts";
 import { landmarkFootprints } from "./landmarkLayout.ts";
-import { UPPER_DECK_OVERHANG } from "../simulation/RouteController.ts";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { useViewStore } from "../simulation/store.ts";
 
@@ -38,19 +37,21 @@ export function MapOverlay({ highlightIds }: { highlightIds: string[] }) {
   // then on its own along the branch, so the map shows where they part.
   const line5 = useMemo(() => {
     const dd = route.doubleDecker;
-    const b = route.line5Branch;
-    if (!dd || !b) return null;
+    const branches = route.line5Branches;
+    if (!dd || !branches.length) return null;
     const parts = [
-      sweepProfile(route.alignment, dd.start - UPPER_DECK_OVERHANG, dd.end + UPPER_DECK_OVERHANG, 8, [
+      sweepProfile(route.alignment, dd.upperStart, dd.upperEnd, 8, [
         { l: 13, y: 20.5 },
         { l: -13, y: 20.5 },
       ]),
-      sweepProfile(b.alignment, 0, b.alignment.length, 6, [
-        { l: 18, y: 20.5 },
-        { l: -18, y: 20.5 },
-      ]),
+      ...branches.map((b) =>
+        sweepProfile(b.alignment, 0, b.alignment.length, 6, [
+          { l: 18, y: 20.5 },
+          { l: -18, y: 20.5 },
+        ]),
+      ),
     ];
-    return { geometry: mergeGeometries(parts)!, colour: b.line?.colour ?? "#D7262E" };
+    return { geometry: mergeGeometries(parts)!, colour: branches[0].line?.colour ?? "#D7262E" };
   }, [route]);
 
   const mats = useMemo(

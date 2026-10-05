@@ -87,6 +87,27 @@
           "road": "mount-poonamallee-road",
           "fromJunctionM": 410
         }
+      },
+      "line5East": {
+        "line": "line-5",
+        "side": "north",
+        "leavesPastStationM": 500,
+        "peelArc": {
+          "radiusM": 110,
+          "turnDeg": 90,
+          "note": "Circular arc: leaves the upper deck in line with it (no kink) and turns north towards Virugambakkam."
+        },
+        "runOn": {
+          "straightM": 900
+        },
+        "descent": {
+          "fromM": 80,
+          "toM": 520,
+          "status": "assumed"
+        },
+        "streetWidthM": 9,
+        "status": "approximate",
+        "source": "Satellite view supplied by the project owner: past Alwarthirunagar and Chandra Metro Mall the upper deck curves north off Arcot Road at Rajeshwari Colony, Virugambakkam. CMRL Phase II map: Corridor 5 runs from Arcot Road north via Virugambakkam Metro to Koyambedu. Where exactly it leaves (500 m past Alwarthirunagar in the model) is traced, not published."
       }
     },
     "platform": {
@@ -272,5 +293,16 @@
     "settleBeforeDoorsSeconds": 1.4,
     "originBoardingSeconds": 5,
     "terminusAlightSeconds": 8
-  }
+  },
+  "neighbourhoods": [
+    {
+      "id": "virugambakkam",
+      "around": "chandra-metro-mall",
+      "halfLengthM": 320,
+      "north": "dense-low-rise",
+      "south": "apartment-blocks",
+      "status": "approximate",
+      "source": "Satellite view of Arcot Road, Virugambakkam, supplied by the project owner: packed 2–4 storey houses on the mall's side, 4–5 storey apartment blocks around a courtyard across the road."
+    }
+  ]
 }

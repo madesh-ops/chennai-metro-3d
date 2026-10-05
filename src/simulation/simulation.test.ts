@@ -220,8 +220,14 @@ test("a malformed Line 5 branch produces a readable error", () => {
   broken.tracks.structures.doubleDecker.line5West!.peelArc.radiusM = -5;
   assert.throws(() => buildRouteModel(broken), RouteDataError);
   const road: DataBundle = structuredClone(data);
-  road.tracks.structures.doubleDecker.line5West!.landsOn.road = "nowhere";
+  road.tracks.structures.doubleDecker.line5West!.landsOn!.road = "nowhere";
   assert.throws(() => buildRouteModel(road), RouteDataError);
+  // A branch must either land on a road or run on.
+  const nowhere: DataBundle = structuredClone(data);
+  const east = nowhere.tracks.structures.doubleDecker.line5East!;
+  delete east.runOn;
+  delete east.landsOn;
+  assert.throws(() => buildRouteModel(nowhere), RouteDataError);
 });
 
 test("MGR flyover runs along Mount–Poonamallee Road over Porur Junction", () => {
@@ -365,4 +371,71 @@ test("Nexus Vijaya Mall and Kamala Cinemas sit either side of Arcot Road before 
       assert.ok(!overlap, `${f.placement.landmark.id} overlaps ${o.placement.landmark.id}`);
     }
   }
+});
+
+test("Line 5 east branch curves north off the upper deck towards Virugambakkam", async () => {
+  const { landmarkFootprints } = await import("../three/landmarkLayout.ts");
+  const route = buildRouteModel(data);
+  const dd = route.doubleDecker!;
+  const b = route.line5Branches.find((x) => x.end === "east")!;
+  assert.ok(b, "east branch present");
+  // Leaves where the upper deck ends, past Alwarthirunagar, in line with it.
+  assert.equal(b.junction, dd.upperEnd);
+  assert.ok(dd.upperEnd > dd.end, "upper deck runs on past Alwarthirunagar");
+  const t = route.alignment.tangent(b.junction);
+  const bt = b.alignment.tangent(0.5);
+  const kink = (Math.acos(Math.min(1, t.x * bt.x + t.z * bt.z)) * 180) / Math.PI;
+  assert.ok(kink < 2, `kink of ${kink.toFixed(1)} degrees`);
+  // Turns to the north side (towards Virugambakkam).
+  const end = b.alignment.point(b.alignment.length);
+  const d = route.alignment.project(end.x, end.z, b.junction, 3000);
+  const c = route.alignment.point(d);
+  const r = route.alignment.right(d);
+  const lateral = (end.x - c.x) * r.x + (end.z - c.z) * r.z;
+  const northSign = r.z > 0 ? -1 : 1;
+  assert.ok(Math.sign(lateral) === northSign && Math.abs(lateral) > 500, `ends ${lateral.toFixed(0)} m off the corridor`);
+  // A wide curve (110 m design radius; the spline through it dips a little at its very start).
+  for (let s = 2; s < b.alignment.length - 2; s += 1) {
+    let dh = Math.abs(b.alignment.heading(s + 2) - b.alignment.heading(s - 2));
+    if (dh > Math.PI) dh = 2 * Math.PI - dh;
+    assert.ok(4 / Math.max(dh, 1e-9) > 90, `radius ${(4 / dh).toFixed(0)} m at ${s} m`);
+  }
+  // Comes down from the upper deck to normal elevated rail level, never climbing.
+  assert.equal(b.railAt(0), route.params.railLevel + route.params.upperDeckHeight);
+  assert.ok(Math.abs(b.railAt(b.alignment.length) - route.params.railLevel) < 1e-6);
+  for (let s = 0; s + 1 < b.alignment.length; s += 1) assert.ok(b.railAt(s + 1) <= b.railAt(s) + 1e-9);
+  // Clear of every drawn landmark.
+  for (const f of landmarkFootprints(route)) {
+    for (let s = 0; s <= b.alignment.length; s += 5) {
+      const p = b.alignment.point(s);
+      const pd = route.alignment.project(p.x, p.z, f.distance, 2000);
+      const pc = route.alignment.point(pd);
+      const pr = route.alignment.right(pd);
+      const pl = (p.x - pc.x) * pr.x + (p.z - pc.z) * pr.z;
+      const inside = Math.abs(pd - f.distance) < f.along / 2 + 6 && Math.abs(pl - f.lateral) < f.depth / 2 + 6;
+      assert.ok(!inside, `branch at ${s} m runs through ${f.placement.landmark.id}`);
+    }
+  }
+});
+
+test("Chandra Metro Mall sits between Alwarthirunagar and Saligramam, on the side Line 5 turns off", async () => {
+  const { landmarkFootprints } = await import("../three/landmarkLayout.ts");
+  const { BUILDING_SETBACK } = await import("../three/layout.ts");
+  const route = buildRouteModel(data);
+  const f = landmarkFootprints(route).find((x) => x.placement.landmark.id === "chandra-metro-mall")!;
+  const a = route.stationById.get("alwarthirunagar")!.distance;
+  const s = route.stationById.get("saligramam")!.distance;
+  assert.ok(f.distance - f.along / 2 > a && f.distance + f.along / 2 < s, "between the two stations");
+  const north = route.alignment.right(f.distance).z > 0 ? f.lateral < 0 : f.lateral > 0;
+  assert.ok(north, "north side, towards Virugambakkam");
+  assert.ok(Math.abs(f.lateral) - f.depth / 2 >= BUILDING_SETBACK, "clear of the road");
+  // The Line 5 curve leaves the road just past it (Vadapalani side), as in the satellite view.
+  const east = route.line5Branches.find((x) => x.end === "east")!;
+  assert.ok(east.junction > f.distance + f.along / 2 && east.junction < f.distance + 250);
+});
+
+test("a neighbourhood around an unknown landmark produces a readable error", () => {
+  const broken: DataBundle = structuredClone(data);
+  (broken.tracks as { neighbourhoods?: { around: string }[] }).neighbourhoods![0].around = "nowhere";
+  assert.throws(() => buildRouteModel(broken), RouteDataError);
 });

@@ -153,6 +153,17 @@ export function generateCityChunk(
 
   const place = (d: number, lateral: number) => alignment.offsetPoint(d, lateral, pt);
 
+  /** Traced neighbourhood pattern at road distance d on one side, if any. */
+  const styleAt = (d: number, side: 1 | -1) => {
+    for (const z of route.neighbourhoods) if (d >= z.from && d <= z.to) return side > 0 ? z.right : z.left;
+    return null;
+  };
+  /** Narrow lanes every ~45 m through the dense low-rise blocks. */
+  const onLane = (d: number) => {
+    for (const z of route.neighbourhoods) if (d >= z.from && d <= z.to) return (d - z.from) % 45 < 5;
+    return false;
+  };
+
   const addBuilding = (d: number, lateral: number, along: number, depth: number, height: number, kind: number, r: Rng) => {
     // Landmarks stand in clear ground.
     if (overlapsLandmark(fps, d, lateral, along / 2, depth / 2)) return false;
@@ -209,6 +220,22 @@ export function generateCityChunk(
     // Row 1: continuous frontage onto the main road.
     let d = d0;
     while (d < d1) {
+      const zone = styleAt(d, side);
+      if (zone) {
+        // Traced pattern: packed 1–4 storey shop-houses, or a short row of 1–2 storey shops.
+        const dense = zone === "dense-low-rise";
+        const lot = dense ? rr(rng, 6, 12) : rr(rng, 8, 16);
+        const mid = d + lot / 2;
+        d += lot + (dense ? rr(rng, 0.3, 1.2) : rr(rng, 0.4, 2));
+        if (mid > d1 || nearStation(mid) || nearCross(mid, 13) || (dense && onLane(mid))) continue;
+        const depth = dense ? rr(rng, 10, 18) : rr(rng, 8, 12);
+        const floors = dense ? 1 + Math.floor(rng() * 4) : 1 + Math.floor(rng() * 2);
+        const kind = rng() < 0.8 ? 1 : 0;
+        const lateral = side * (BUILDING_SETBACK + rr(rng, 0, 1.5) + depth / 2);
+        const placed = addBuilding(mid, lateral, lot, depth, floors * 3.1 + 0.8, kind, rng);
+        if (placed && kind === 1) addSigns(mid, lateral, lot, depth, side, rng);
+        continue;
+      }
       const lot = rr(rng, 8, 19);
       const gap = rng() < 0.12 ? rr(rng, 4, 12) : rr(rng, 0.4, 2.2);
       const mid = d + lot / 2;
@@ -228,6 +255,21 @@ export function generateCityChunk(
     ] as const) {
       d = d0;
       while (d < d1) {
+        const zone = styleAt(d, side);
+        if (zone === "apartment-blocks") {
+          // Apartment blocks are laid out on their own below; skip ahead.
+          d += 8;
+          continue;
+        }
+        if (zone === "dense-low-rise") {
+          const lot = rr(rng, 8, 16);
+          const mid = d + lot / 2;
+          d += lot + rr(rng, 0.5, 2);
+          if (mid > d1 || rng() > 0.97 || nearCross(mid, 12) || onLane(mid)) continue;
+          const depth = rr(rng, 10, 20);
+          addBuilding(mid, side * rr(rng, lat0 + depth / 2, lat1), lot, depth, (2 + Math.floor(rng() * 3)) * 3.1 + 0.8, 0, rng);
+          continue;
+        }
         const lot = rr(rng, 12, 30);
         const mid = d + lot / 2;
         d += lot + rr(rng, 2, 10);
@@ -246,8 +288,35 @@ export function generateCityChunk(
         const along = rr(rng, 14, 38);
         const depth = rr(rng, 14, 36);
         const md = fd + rr(rng, 0, 30);
-        const floors = floorsFor(md, rng, 0.01);
+        const zone = styleAt(md, side);
+        if (zone === "apartment-blocks" && lat < 300) continue; // open ground behind the blocks
+        const floors = zone ? 2 + Math.floor(rng() * 3) : floorsFor(md, rng, 0.01);
         addBuilding(md, side * (lat + rr(rng, 0, 30)), along, depth, floors * 3.2 + 0.8, floors >= 8 && rng() < 0.4 ? 2 : 0, rng);
+      }
+    }
+
+    // Traced neighbourhood extras: a third row of houses, and apartment blocks round a courtyard.
+    for (const z of route.neighbourhoods) {
+      const style = side > 0 ? z.right : z.left;
+      if (!style || z.to < d0 || z.from >= d1) continue;
+      const zr = mulberry32(Math.floor(z.from * 3.1) + (side > 0 ? 7 : 11));
+      if (style === "dense-low-rise") {
+        for (let hd = z.from; hd < z.to; ) {
+          const lot = rr(zr, 8, 16);
+          const mid = hd + lot / 2;
+          hd += lot + rr(zr, 0.5, 2);
+          const depth = rr(zr, 10, 20);
+          const lateral = side * rr(zr, 150 + depth / 2, 260);
+          const floors = 2 + Math.floor(zr() * 3);
+          if (mid < d0 || mid >= d1 || onLane(mid) || nearCross(mid, 12)) continue;
+          addBuilding(mid, lateral, lot, depth, floors * 3.1 + 0.8, 0, zr);
+        }
+      } else {
+        // Two rows of 5-storey blocks either side of a ~30 m courtyard.
+        for (let bd = z.from + 22; bd < z.to - 16; bd += 42) {
+          if (bd < d0 || bd >= d1 || nearCross(bd, 20)) continue;
+          for (const lat of [44, 102]) addBuilding(bd, side * lat, 32, 28, 5 * 3.1 + 0.8, 0, zr);
+        }
       }
     }
 

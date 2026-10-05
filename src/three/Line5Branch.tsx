@@ -7,22 +7,34 @@ import { useScene } from "./SceneContext.tsx";
 import { DECK_PROFILE, createTrackMaterials, pierGeometry, trackGeometry } from "./Track.tsx";
 import { PIER, ROAD, VIADUCT } from "./layout.ts";
 import { composeMatrix, sweepProfile } from "../utils/geometry.ts";
+import type { BranchModel } from "../simulation/RouteController.ts";
 
 const PIER_SPACING = 30;
 
 /**
- * Line 5 (Red Line) leaving the Arcot Road double-decker at its west end:
- * the upper deck peels off south, falls to normal rail level and runs east
- * along Mount–Poonamallee Road. Finished viaduct with track, no trains
- * (Line 5 is not open). Path traced from satellite imagery (tracks.json).
+ * Line 5 (Red Line) leaving the Arcot Road double-decker: at the west end the
+ * upper deck peels off south, falls to normal rail level and runs east along
+ * Mount–Poonamallee Road; at the east end it curves north off Arcot Road
+ * towards Virugambakkam. Finished viaducts with track, no trains (Line 5 is
+ * not open). Paths traced from satellite imagery (tracks.json).
  */
 export function Line5Branch() {
+  const { route } = useScene();
+  return (
+    <>
+      {route.line5Branches.map((b) => (
+        <BranchViaduct key={b.end} branch={b} />
+      ))}
+    </>
+  );
+}
+
+function BranchViaduct({ branch }: { branch: BranchModel }) {
   const { route, range } = useScene();
-  const branch = route.line5Branch;
   const { params } = route;
 
   const parts = useMemo(() => {
-    if (!branch || branch.junction < range[0] - 200 || branch.junction > range[1] + 200) return null;
+    if (branch.junction < range[0] - 200 || branch.junction > range[1] + 200) return null;
     const { alignment, railAt } = branch;
     // Under a kilometre: one mesh per part (deck, beds, rails) keeps draw calls low.
     const chunks = [
@@ -72,11 +84,12 @@ export function Line5Branch() {
   );
   useEffect(() => () => Object.values(materials).forEach((m) => m.dispose()), [materials]);
 
-  // Dev-only: branch points for scripted camera framing.
+  // Dev-only: branch points for scripted camera framing (west branch: __cm3dBranch, east: __cm3dBranchEast).
   useEffect(() => {
-    if (process.env.NODE_ENV === "production" || !branch) return;
-    const w = window as unknown as { __cm3dBranch?: () => unknown };
-    w.__cm3dBranch = () => {
+    if (process.env.NODE_ENV === "production") return;
+    const key = branch.end === "west" ? "__cm3dBranch" : "__cm3dBranchEast";
+    const w = window as unknown as Record<string, (() => unknown) | undefined>;
+    w[key] = () => {
       const pts = [];
       for (let s = 0; s <= branch.alignment.length; s += 50) {
         const p = branch.alignment.point(s);
@@ -87,7 +100,7 @@ export function Line5Branch() {
       return { junction: { x: j.x, z: j.z, tx: t.x, tz: t.z }, points: pts };
     };
     return () => {
-      delete w.__cm3dBranch;
+      delete w[key];
     };
   }, [branch, route.alignment]);
 

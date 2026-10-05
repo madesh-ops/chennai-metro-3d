@@ -13,7 +13,6 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { useScene } from "./SceneContext.tsx";
-import { UPPER_DECK_OVERHANG } from "../simulation/RouteController.ts";
 import type { Alignment } from "../simulation/Alignment.ts";
 import { chunkRanges, composeMatrix, rectProfile, sweepProfile, type ProfilePoint } from "../utils/geometry.ts";
 import { makeConcreteTexture, makeTrackBedTexture } from "./textures.ts";
@@ -157,8 +156,8 @@ export function Track() {
   // onto the Line 5 branch (Line5Branch.tsx); the east end still stops short.
   const upper = useMemo(() => {
     if (!dd) return [];
-    const a = Math.max(range[0], dd.start - UPPER_DECK_OVERHANG);
-    const b = Math.min(range[1], dd.end + UPPER_DECK_OVERHANG);
+    const a = Math.max(range[0], dd.upperStart);
+    const b = Math.min(range[1], dd.upperEnd);
     if (b <= a) return [];
     const top = rail + params.upperDeckHeight;
     // One mesh per part for the whole upper deck: it is only ~4 km, and fewer
@@ -190,7 +189,7 @@ export function Track() {
       alignment.point(d, p);
       const m = composeMatrix(new Matrix4(), p.x, 0, p.z, alignment.heading(d));
       if (flyover) steelM.push(m);
-      else if (dd && d > dd.start - UPPER_DECK_OVERHANG && d < dd.end + UPPER_DECK_OVERHANG) portalM.push(m);
+      else if (dd && d > dd.upperStart && d < dd.upperEnd) portalM.push(m);
       else stdM.push(m);
     }
     const make = (geo: BufferGeometry, ms: Matrix4[], mat = materials.pier) => {

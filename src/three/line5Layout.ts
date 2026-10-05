@@ -3,11 +3,12 @@ import type { RouteModel } from "../simulation/RouteController.ts";
 import { ROAD, VIADUCT } from "./layout.ts";
 
 /**
- * Ground-level layout around Porur Junction: the side roads leaving the
- * corridor (Mount–Poonamallee Road towards Guindy, Kundrathur Main Road),
- * the street beneath the Line 5 viaduct's peel-away curve, and a clearance
+ * Ground-level layout off the corridor: the side roads leaving it at Porur
+ * Junction (Mount–Poonamallee Road towards Guindy, Kundrathur Main Road), the
+ * streets beneath the Line 5 viaducts where they leave the double-decker
+ * (towards Mount–Poonamallee Road and towards Virugambakkam), and a clearance
  * corridor that keeps buildings and trees off those roads and from under the
- * viaduct.
+ * viaducts.
  */
 
 export interface BranchRoad {
@@ -46,10 +47,9 @@ export function branchLayout(route: RouteModel): BranchLayout | null {
     roads.push({ alignment: r.alignment, from: r.junctionS, to: r.alignment.length, width: r.width });
   }
 
-  // Street under the Line 5 curve: from where it leaves the main road to where it lands on its side road.
-  const b = route.line5Branch;
+  // Street under each Line 5 branch: from where it leaves the main road to where it lands (or ends).
   const deckHalf = VIADUCT.halfWidth + 2;
-  if (b) {
+  for (const b of route.line5Branches) {
     const clearOfMain = ROAD.halfWidth + ROAD.sidewalk + 1;
     let streetFrom = 0;
     while (streetFrom < b.landS) {

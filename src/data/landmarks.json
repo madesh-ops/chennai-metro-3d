@@ -243,21 +243,22 @@
       "nameTaVerified": true,
       "kind": "commercial",
       "nearStation": "alwarthirunagar",
-      "description": "Shopping mall and multiplex on Arcot Road, Virugambakkam. Modelled on street photos of its front: a blue glass facade sweeping up like a sail, a gold band of billboards, and a white drum crowned by a flared, ribbed bowl. The Tamil name is as shown on its own sign. Ads, films and shop signage are invented.",
-      "source": "Street photos supplied by the project owner; Mappls listing 'PVR INOX, 3rd Floor, Chandra Metro Mall, 262, Arcot Road, Virugambakkam' (13.046805, 80.190419).",
+      "description": "Shopping mall and multiplex on Arcot Road, Virugambakkam, between Alwarthirunagar and Saligramam. Modelled on street photos of its front (a blue glass facade sweeping up like a sail, a gold band of billboards, a white drum crowned by a flared, ribbed bowl) and a satellite view of its shape: a narrow frontage on Arcot Road with a deep, white-roofed hall behind and a car park beside it. The Tamil name is as shown on its own sign. Ads, films and shop signage are invented.",
+      "source": "Street photos and satellite view supplied by the project owner; Mappls listing 'PVR INOX, 3rd Floor, Chandra Metro Mall, 262, Arcot Road, Virugambakkam' (13.046805, 80.190419).",
       "model": {
         "type": "glass-mall",
-        "along": 52,
-        "depth": 52,
+        "along": 46,
+        "depth": 104,
         "height": 33
       },
       "position": {
-        "lat": 13.046805,
-        "lon": 80.190419,
-        "side": "north"
+        "station": "alwarthirunagar",
+        "alongM": 357,
+        "side": "north",
+        "offsetM": 60
       },
       "positionQuality": "approximate",
-      "positionSource": "Mappls — 262 Arcot Road, Virugambakkam (13.046805, 80.190419), projected onto the modelled line. Address in Rajeswari Colony, Virugambakkam, north of Arcot Road; snapped to the roadside on that side. Exact frontage not published."
+      "positionSource": "Between Alwarthirunagar and Saligramam, on the side Line 5 turns off towards Virugambakkam, per the project owner and their satellite view (placed midway between the two stations). The Mappls coordinate projects about 420 m west of Alwarthirunagar on the modelled alignment, which runs straight between interpolated stations here."
     },
     {
       "id": "vadapalani-murugan-temple",
