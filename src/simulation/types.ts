@@ -229,8 +229,6 @@ export interface RawTracksFile {
     sideRoads?: RawSideRoad[];
     /** Covered footbridges from a station concourse across the road. */
     footbridges?: RawFootbridge[];
-    /** Stretches where the viaduct stands on concrete portal piers instead of single columns. */
-    portalPiers?: { id: string; station: string; fromM: number; toM: number; status: string; note: string; source: string }[];
     platform: {
       type: string;
       lengthM: Tagged<number>;

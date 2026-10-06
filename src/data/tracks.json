@@ -130,9 +130,9 @@
           "note": "Two 3.85 m lanes each way between crash barriers."
         },
         "crestDeckM": {
-          "value": 7.5,
+          "value": 6.7,
           "status": "assumed",
-          "note": "Matches the OpenStreetMap flyover deck drawn in the world tiles (7.5 m per layer): about 5.5 m clearance plus the deck."
+          "note": "About 5.5 m clearance for the junction road beneath plus a 1.2 m deck."
         },
         "rampM": {
           "value": 195,
@@ -267,17 +267,6 @@
         "status": "approximate",
         "note": "Covered steel truss footbridge from the station concourse across NH48 (Chennai–Bengaluru Highway) to a stair/lift tower on the south side. Span, position and support traced from satellite and street photos supplied by the project owner; dimensions estimated from them.",
         "source": "Project owner: satellite views and street photos of Poonamallee Bypass metro (2026-10-05)"
-      }
-    ],
-    "portalPiers": [
-      {
-        "id": "porur-mgr-ramp",
-        "station": "porur-junction",
-        "fromM": -560,
-        "toM": -357,
-        "status": "approximate",
-        "note": "West of Porur Junction the viaduct runs along Mount–Poonamallee Road directly over the MGR flyover's west ramp, on two-column concrete portals straddling it (single columns would stand on the ramp). From the ramp start by Porur Lake to the steel portals over the flyover deck.",
-        "source": "Project owner: street photos of Mount–Poonamallee Road at the MGR flyover (2026-10-06); ramp extent from the OpenStreetMap MGR FLyover ways"
       }
     ]
   },

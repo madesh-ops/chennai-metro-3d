@@ -15,7 +15,6 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { useScene } from "./SceneContext.tsx";
-import { dataBundle } from "../simulation/data.ts";
 import type { Alignment } from "../simulation/Alignment.ts";
 import { chunkRanges, composeMatrix, rectProfile, sweepProfile, type ProfilePoint } from "../utils/geometry.ts";
 import { makeConcreteTexture, makeTrackBedTexture } from "./textures.ts";
@@ -183,32 +182,6 @@ function steelPortalGeometry(top: number): BufferGeometry {
   return mergeGeometries(parts)!;
 }
 
-/**
- * Reinforced-concrete portal pier: two square columns either side, a deep
- * crossbeam under the viaduct (where the viaduct runs over a flyover ramp,
- * as on Mount–Poonamallee Road west of Porur Junction).
- */
-function concretePortalGeometry(top: number): BufferGeometry {
-  const parts: BufferGeometry[] = [];
-  for (const s of [-1, 1]) {
-    const col = new BoxGeometry(1.8, top - 2.0, 1.8);
-    col.translate(0, (top - 2.0) / 2, s * FLYOVER_PORTAL_OFFSET);
-    parts.push(col.toNonIndexed());
-  }
-  const beam = new BoxGeometry(2.2, 2.0, FLYOVER_PORTAL_OFFSET * 2 + 1.8);
-  beam.translate(0, top - 1.0, 0);
-  parts.push(beam.toNonIndexed());
-  return mergeGeometries(parts)!;
-}
-
-/** Curated stretches where the viaduct stands on concrete portals (tracks.json structures.portalPiers). */
-function portalSpans(route: { stationById: Map<string, { distance: number }> }): [number, number][] {
-  return (dataBundle.tracks.structures.portalPiers ?? []).flatMap((p) => {
-    const st = route.stationById.get(p.station);
-    return st ? [[st.distance + p.fromM, st.distance + p.toM] as [number, number]] : [];
-  });
-}
-
 export function Track() {
   const { route, range } = useScene();
   const { alignment, params } = route;
@@ -298,9 +271,6 @@ export function Track() {
 
   const piers = useMemo(() => {
     const steel = steelPortalGeometry(rail + VIADUCT.girderBottom);
-    const concrete = concretePortalGeometry(rail + VIADUCT.girderBottom);
-    const concreteM: Matrix4[] = [];
-    const spans = portalSpans(route);
     const portal = portalGeometry(rail + VIADUCT.girderBottom, rail + VIADUCT.girderBottom + params.upperDeckHeight);
     // Standard piers in 1.5 m height steps (ramps), so caps are never stretched.
     const byHeight = new Map<number, Matrix4[]>();
@@ -319,7 +289,6 @@ export function Track() {
       alignment.point(d, p);
       const m = composeMatrix(new Matrix4(), p.x, 0, p.z, alignment.heading(d));
       if (flyover) steelM.push(m);
-      else if (spans.some(([a, b]) => d >= a && d <= b)) concreteM.push(m);
       else if (dd && d > dd.upperStart && d < dd.upperEnd) portalM.push(m);
       else {
         const bucket = Math.round((y + VIADUCT.girderBottom - PIER.capHeight) / 1.5) * 1.5;
@@ -340,9 +309,8 @@ export function Track() {
       ...[...byHeight.entries()].map(([h, ms]) => make(pierGeometry(Math.max(1, h)), ms)),
       make(portal, portalM),
       make(steel, steelM, materials.steel),
-      make(concrete, concreteM),
     ].filter(Boolean) as InstancedMesh[];
-  }, [alignment, dd, materials.pier, materials.steel, params.pierSpacing, params.platformLength, params.upperDeckHeight, rail, railAt, range, route]);
+  }, [alignment, dd, materials.pier, materials.steel, params.pierSpacing, params.platformLength, params.upperDeckHeight, rail, railAt, range, route.stations, route.flyovers]);
 
   useEffect(
     () => () => {
