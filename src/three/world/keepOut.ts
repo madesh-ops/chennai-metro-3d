@@ -66,15 +66,9 @@ export function routeKeepOutData(route: RouteModel, range: [number, number]): Ke
       add(p.x, p.z, f.widthM / 2 + (l > f.toLateralM ? f.tower.sizeM / 2 + 2 : 2));
     }
   }
-  // Flyovers the scene draws itself (the MGR flyover at Porur): OSM's deck is skipped there.
-  const flyovers: number[] = [];
-  for (const f of route.flyovers) {
-    for (let s = f.startS - 40; s <= f.endS + 40; s += 10) {
-      const q = f.road.alignment.point(s);
-      flyovers.push(q.x, q.z, f.halfWidth + 8);
-    }
-  }
-  return { circles, rects, flyovers };
+  // Flyover decks all come from OpenStreetMap now (the curated MGR flyover only adds name
+  // boards and the metro's steel portals), so no OSM deck is skipped.
+  return { circles, rects, flyovers: [] };
 }
 
 export function routeKeepOut(route: RouteModel, range: [number, number]): KeepOut {

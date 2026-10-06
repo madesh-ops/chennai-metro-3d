@@ -242,7 +242,8 @@ test("MGR flyover runs along Mount–Poonamallee Road over Porur Junction", () =
   assert.equal(f.heightAt(f.startS), 0);
   assert.equal(f.heightAt(f.endS), 0);
   // Crest over the junction itself.
-  assert.ok(Math.abs(f.heightAt(mp.junctionS) - 6.7) < 0.05);
+  // Crest at the junction: the deck height in tracks.json (matching the OSM deck in the world tiles).
+  assert.ok(Math.abs(f.heightAt(mp.junctionS) - f.raw.crestDeckM.value) < 0.05);
   for (let s = f.startS; s < f.endS; s += 0.5) {
     assert.ok(Math.abs(f.heightAt(s + 0.5) - f.heightAt(s)) / 0.5 <= 0.05, `grade at ${s.toFixed(1)}`);
   }
@@ -325,8 +326,9 @@ test("no traffic drives inside the flyover deck or the station concourse", async
         if (deck > 0.2 && off < f.halfWidth + 1.3) {
           assert.ok(Math.abs(at.y - 0.03 - deck) < 0.3, `lane ${lane} dir ${dir} at J${(s - J).toFixed(0)} is inside the deck`);
         }
-        // And every bus roof stays under the concourse.
-        assert.ok(at.y + BUS_HEIGHT < concourseBottom - 0.3, `bus roof ${(at.y + BUS_HEIGHT).toFixed(2)} m reaches the concourse`);
+        // And every bus beneath a station concourse keeps its roof under it.
+        const underConcourse = route.stations.some((st) => Math.abs(s - st.distance) < STATION.concourseLength / 2 + 2);
+        if (underConcourse) assert.ok(at.y + BUS_HEIGHT < concourseBottom - 0.3, `bus roof ${(at.y + BUS_HEIGHT).toFixed(2)} m reaches the concourse`);
       }
     }
   }

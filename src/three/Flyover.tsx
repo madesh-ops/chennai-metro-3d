@@ -202,9 +202,8 @@ export function Flyover() {
     <group>
       {built.map((b) => (
         <group key={b.f.raw.id}>
-          <mesh geometry={b.surface} material={materials.surface} receiveShadow />
-          <mesh geometry={b.body} material={materials.body} castShadow receiveShadow />
-          {b.piers && <mesh geometry={b.piers} material={materials.pier} castShadow receiveShadow />}
+          {/* The deck itself comes from OpenStreetMap (world tiles: both carriageways, real
+              path and ramps); only the curated name boards are drawn here. */}
           <NameBoards built={b} />
         </group>
       ))}

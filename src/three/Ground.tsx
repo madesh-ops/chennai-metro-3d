@@ -8,7 +8,6 @@ import { useScene } from "./SceneContext.tsx";
 import { chunkRanges, composeMatrix, rectProfile, sweepProfile } from "../utils/geometry.ts";
 import { makeConcreteTexture, makeGroundTexture, makeRoadTexture } from "./textures.ts";
 import { ROAD } from "./layout.ts";
-import { branchLayout } from "./line5Layout.ts";
 
 /**
  * The ground, cross streets and carriageway are only centimetres apart, which
@@ -88,17 +87,8 @@ export function Ground({ crossStreets }: { crossStreets: number[] }) {
     });
   }, [alignment, corridor]);
 
-  // Street and Mount–Poonamallee Road beneath the Line 5 branch.
-  const branchRoads = useMemo(() => {
-    const layout = branchLayout(route);
-    if (!layout) return [];
-    return layout.roads.map((r) =>
-      sweepProfile(r.alignment, r.from, r.to, 4, [
-        { l: r.width / 2, y: 0.02 },
-        { l: -r.width / 2, y: 0.02 },
-      ]),
-    );
-  }, [route]);
+  // Side roads (Mount–Poonamallee Road, Kundrathur Road) and the streets under the Line 5
+  // branches are drawn by the world tiles from OpenStreetMap, not here.
 
   const cross = useMemo(() => {
     if (!crossStreets.length) return null;
@@ -145,9 +135,8 @@ export function Ground({ crossStreets }: { crossStreets: number[] }) {
         r.paths.dispose();
       });
       cross?.geometry.dispose();
-      branchRoads.forEach((g) => g.dispose());
     },
-    [roads, cross, branchRoads],
+    [roads, cross],
   );
 
   return (
@@ -161,9 +150,6 @@ export function Ground({ crossStreets }: { crossStreets: number[] }) {
         </group>
       ))}
       {cross && <primitive object={cross} />}
-      {branchRoads.map((g, i) => (
-        <mesh key={i} geometry={g} material={materials.cross} renderOrder={ORDER.cross} receiveShadow />
-      ))}
     </group>
   );
 }
