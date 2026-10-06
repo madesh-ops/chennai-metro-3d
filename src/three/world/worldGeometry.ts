@@ -433,16 +433,20 @@ export function buildTileGeometry(tile: TileData, opts: BuildOptions): TileGeome
   // Raised roads become structures, except where the scene draws its own flyover.
   const { ground, raised } = splitRaised(tile.roads);
   const own = opts.ownFlyover ?? (() => false);
-  const built = raised.filter((r) => {
-    const m = Math.floor(r.line.length / 4) * 2;
-    return !own(r.line[m], r.line[m + 1]);
-  });
+  // Any raised piece touching it (deck, other carriageway or a ramp reaching beyond it) is
+  // suppressed whole and painted flat on the ground instead.
+  const touchesOwn = (r: TileRoad) => {
+    for (let k = 0; k < r.line.length; k += 2) if (own(r.line[k], r.line[k + 1])) return true;
+    return false;
+  };
+  const built = raised.filter((r) => !touchesOwn(r));
+  const flattened = raised.filter(touchesOwn).map((r) => ({ ...r, heights: undefined }));
   const structures = buildRaised(built, ground);
   const out: TileGeometry = {
     buildings,
     decks: structures.deck,
     barriers: structures.barriers,
-    flat: buildFlat(ground, tile.areas),
+    flat: buildFlat([...ground, ...flattened], tile.areas),
     trunks: { matrices: [], colors: [] },
     crowns: { matrices: [], colors: [] },
     palms: { matrices: [], colors: [] },

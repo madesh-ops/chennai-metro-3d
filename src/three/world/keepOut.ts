@@ -69,7 +69,8 @@ export function routeKeepOutData(route: RouteModel, range: [number, number]): Ke
   // Flyovers the scene draws itself (the MGR flyover at Porur): OSM's deck is skipped there.
   const flyovers: number[] = [];
   for (const f of route.flyovers) {
-    for (let s = f.startS - 40; s <= f.endS + 40; s += 10) {
+    // Beyond its ends too: OSM's approach ramps run on for up to ~190 m.
+    for (let s = f.startS - 250; s <= f.endS + 250; s += 10) {
       const q = f.road.alignment.point(s);
       flyovers.push(q.x, q.z, f.halfWidth + 8);
     }
