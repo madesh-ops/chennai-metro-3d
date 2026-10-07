@@ -20,7 +20,7 @@ import {
   type Texture,
 } from "three";
 import { useScene } from "./SceneContext.tsx";
-import { buildSignBoards, buildStation, buildStationEntrances, buildUndergroundSignBoards, buildUndergroundStation, type StationDims, type StationGeometry } from "./stationModel.ts";
+import { bendToTrack, buildSignBoards, buildStation, buildStationEntrances, buildUndergroundSignBoards, buildUndergroundStation, type StationDims, type StationGeometry, type TrackFrame } from "./stationModel.ts";
 import { TUNNEL_ORDER } from "./Track.tsx";
 import { ensureFontsLoaded, makeConcreteTexture, makeRadialTexture, makeStationSignTexture } from "./textures.ts";
 import { composeMatrix } from "../utils/geometry.ts";
@@ -44,22 +44,36 @@ function stationMatrix(st: StationModel, alignment: ReturnType<typeof useScene>[
   return composeMatrix(new Matrix4(), p.x, 0, p.z, alignment.heading(st.distance));
 }
 
+/** The track frame x metres along from a station's centre (for bending halls to curves). */
+function trackFrame(st: StationModel, alignment: ReturnType<typeof useScene>["route"]["alignment"]): TrackFrame {
+  const p = { x: 0, z: 0 };
+  const t = { x: 0, z: 0 };
+  return (x) => {
+    alignment.point(st.distance + x, p);
+    alignment.tangent(st.distance + x, t);
+    return { px: p.x, pz: p.z, tx: t.x, tz: t.z };
+  };
+}
+
 function VariantMeshes({
   geo,
   stations,
   mats,
   renderOrder = 0,
+  worldSpace = false,
 }: {
   geo: StationGeometry;
   stations: StationModel[];
   mats: Record<string, Material>;
   /** Underground halls draw before the ground (TUNNEL_ORDER). */
   renderOrder?: number;
+  /** Geometry already placed in the world (bent to the track): no station matrix. */
+  worldSpace?: boolean;
 }) {
   const { route } = useScene();
   const meshes = useMemo(() => {
     if (!stations.length) return [];
-    const matrices = stations.map((s) => stationMatrix(s, route.alignment));
+    const matrices = stations.map((s) => (worldSpace ? new Matrix4() : stationMatrix(s, route.alignment)));
     const make = (g: BufferGeometry, m: Material, cast = false, perInstanceLit = false) => {
       const mesh = new InstancedMesh(g, m, stations.length);
       matrices.forEach((mx, i) => mesh.setMatrixAt(i, mx));
@@ -84,7 +98,7 @@ function VariantMeshes({
       make(geo.facade, mats.facade),
       make(geo.lights, mats.lights, false, true),
     ];
-  }, [geo, stations, mats, route.alignment, renderOrder]);
+  }, [geo, stations, mats, route.alignment, renderOrder, worldSpace]);
   return (
     <>
       {meshes.map((m, i) => (
@@ -94,7 +108,7 @@ function VariantMeshes({
   );
 }
 
-function SignBoards({ station, geometry, lineColour }: { station: StationModel; geometry: BufferGeometry; lineColour: string }) {
+function SignBoards({ station, geometry, lineColour, worldSpace = false }: { station: StationModel; geometry: BufferGeometry; lineColour: string; worldSpace?: boolean }) {
   const { route } = useScene();
   const [texture, setTexture] = useState<Texture | null>(null);
   useEffect(() => {
@@ -114,7 +128,7 @@ function SignBoards({ station, geometry, lineColour }: { station: StationModel; 
     () => (texture ? new MeshBasicMaterial({ map: texture, toneMapped: false, side: DoubleSide }) : null),
     [texture],
   );
-  const matrix = useMemo(() => stationMatrix(station, route.alignment), [station, route.alignment]);
+  const matrix = useMemo(() => (worldSpace ? new Matrix4() : stationMatrix(station, route.alignment)), [station, route.alignment, worldSpace]);
   if (!material) return null;
   return <mesh geometry={geometry} material={material} matrix={matrix} matrixAutoUpdate={false} />;
 }
@@ -160,9 +174,20 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
     }
     return [...groups.entries()].map(([rail, stations]) => {
       const ud = { ...dims, rail };
-      return { rail, stations, hall: buildUndergroundStation(ud), entrances: buildStationEntrances(ud), boards: buildUndergroundSignBoards(ud) };
+      const hall = buildUndergroundStation(ud);
+      const boards = buildUndergroundSignBoards(ud);
+      // Each hall follows its own stretch of (possibly curved) track; the street entrances stay straight.
+      const bent = stations.map((st) => {
+        const frame = trackFrame(st, alignment);
+        const g = Object.fromEntries(Object.entries(hall).map(([k, v]) => [k, bendToTrack(v, frame)])) as unknown as StationGeometry;
+        return { station: st, hall: g, boards: bendToTrack(boards, frame) };
+      });
+      // The straight templates were only needed to bend from.
+      Object.values(hall).forEach((x) => x.dispose());
+      boards.dispose();
+      return { rail, stations, bent, entrances: buildStationEntrances(ud) };
     });
-  }, [inRange, railOf, dims]);
+  }, [inRange, railOf, dims, alignment]);
 
   const geos = useMemo(
     () => ({
@@ -420,9 +445,11 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
   useEffect(
     () => () =>
       underground.forEach((g) => {
-        Object.values(g.hall).forEach((x) => x.dispose());
+        for (const b of g.bent) {
+          Object.values(b.hall).forEach((x) => x.dispose());
+          b.boards.dispose();
+        }
         Object.values(g.entrances).forEach((x) => x.dispose());
-        g.boards.dispose();
       }),
     [underground],
   );
@@ -440,13 +467,16 @@ export function Stations({ signal }: { signal?: StationSignalState }) {
       ))}
       {underground.map((g) => (
         <group key={g.rail}>
-          <VariantMeshes geo={g.hall} stations={g.stations} mats={ugMats} renderOrder={TUNNEL_ORDER} />
+          {g.bent.map((b) => (
+            <VariantMeshes key={b.station.id} geo={b.hall} stations={[b.station]} mats={ugMats} renderOrder={TUNNEL_ORDER} worldSpace />
+          ))}
           <VariantMeshes geo={g.entrances} stations={g.stations} mats={entranceMats} />
         </group>
       ))}
-      {inRange.map((s) => (
-        <SignBoards key={s.id} station={s} geometry={underground.find((g) => g.stations.includes(s))?.boards ?? geos.boards} lineColour={line.colour} />
-      ))}
+      {inRange.map((s) => {
+        const ug = underground.flatMap((g) => g.bent).find((b) => b.station === s);
+        return <SignBoards key={s.id} station={s} geometry={ug?.boards ?? geos.boards} lineColour={line.colour} worldSpace={Boolean(ug)} />;
+      })}
       {pools && <primitive object={pools} />}
       {extras.people && <primitive object={extras.people} />}
       {extras.barricades && <primitive object={extras.barricades} />}

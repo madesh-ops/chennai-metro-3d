@@ -1,4 +1,5 @@
-import { BoxGeometry, BufferGeometry, CylinderGeometry, ExtrudeGeometry, PlaneGeometry, Shape } from "three";
+import {
+  BufferAttribute, BoxGeometry, BufferGeometry, CylinderGeometry, ExtrudeGeometry, PlaneGeometry, Shape } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { ROAD, STATION, VIADUCT } from "./layout.ts";
 
@@ -228,6 +229,13 @@ export function buildSignBoards(d: StationDims, level: number): BufferGeometry {
 
 /** Underground box station: hall half-width and clear height above the rail. */
 const UG_HALF = 13;
+/**
+ * Tunnel mouth in the hall's end walls: the tunnel box's clear inside (TUNNEL_HALF, TUNNEL_ROOF
+ * in Track.tsx), so the end wall also covers the cut ends of the tunnel's walls and roof slab
+ * (swept without end caps, they would otherwise show straight through to the surface).
+ */
+const UG_OPENING = 5.4;
+const UG_OPENING_TOP = 6.0;
 const UG_CEILING = 8;
 
 /**
@@ -249,8 +257,9 @@ export function buildUndergroundStation(d: StationDims): StationGeometry {
   out.concrete.push(box(-X, X, R - 1.4, R + VIADUCT.deckTop, -UG_HALF, UG_HALF));
   for (const s of [-1, 1]) {
     out.concrete.push(box(-X, X, R - 1.4, R + UG_CEILING, s < 0 ? -UG_HALF : UG_HALF - 0.6, s < 0 ? -UG_HALF + 0.6 : UG_HALF));
-    out.concrete.push(box(s < 0 ? -X : X - 0.6, s < 0 ? -X + 0.6 : X, R + 6.8, R + UG_CEILING, -UG_HALF, UG_HALF));
-    for (const z of [-1, 1]) out.concrete.push(box(s < 0 ? -X : X - 0.6, s < 0 ? -X + 0.6 : X, R - 1.4, R + UG_CEILING, z < 0 ? -UG_HALF : 6.2, z < 0 ? -6.2 : UG_HALF));
+    out.concrete.push(box(s < 0 ? -X : X - 0.6, s < 0 ? -X + 0.6 : X, R + UG_OPENING_TOP, R + UG_CEILING, -UG_HALF, UG_HALF));
+    // Openings exactly the tunnel box's width (TUNNEL_HALF + WALL in Track.tsx), so it butts on with no slit.
+    for (const z of [-1, 1]) out.concrete.push(box(s < 0 ? -X : X - 0.6, s < 0 ? -X + 0.6 : X, R - 1.4, R + UG_CEILING, z < 0 ? -UG_HALF : UG_OPENING, z < 0 ? -UG_OPENING : UG_HALF));
   }
   out.roof.push(box(-X, X, R + UG_CEILING, R + UG_CEILING + 0.6, -UG_HALF, UG_HALF));
   for (const s of [-1, 1]) {
@@ -335,4 +344,86 @@ export function buildUndergroundSignBoards(d: StationDims): BufferGeometry {
     }
   }
   return mergeGeometries(parts)!;
+}
+
+/* ------------------------------------------------------------------ */
+/* Following a curved track                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Split triangles (non-indexed) until none spans more than `maxDx` metres
+ * along x, so a station built straight can be bent to a curved track.
+ * Every float attribute is interpolated.
+ */
+export function subdivideAlongX(geo: BufferGeometry, maxDx: number): BufferGeometry {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  const names = Object.keys(g.attributes);
+  const sizes = names.map((n) => g.getAttribute(n).itemSize);
+  const src = names.map((n) => g.getAttribute(n).array as ArrayLike<number>);
+  const pos = g.getAttribute("position");
+  const out: number[][] = names.map(() => []);
+  type V = number[][]; // per attribute: values
+  const vertex = (i: number): V => names.map((_, a) => Array.from({ length: sizes[a] }, (_, k) => src[a][i * sizes[a] + k]));
+  const mid = (p: V, q: V): V => p.map((vals, a) => vals.map((v, k) => (v + q[a][k]) / 2));
+  const xOf = (v: V) => v[names.indexOf("position")][0];
+  const emit = (v: V) => v.forEach((vals, a) => out[a].push(...vals));
+  const split = (a: V, b: V, c: V, depth: number) => {
+    const xs = [xOf(a), xOf(b), xOf(c)];
+    if (depth > 12 || Math.max(...xs) - Math.min(...xs) <= maxDx) {
+      emit(a);
+      emit(b);
+      emit(c);
+      return;
+    }
+    // Split the edge with the longest run in x (keeps the winding).
+    const dab = Math.abs(xs[0] - xs[1]);
+    const dbc = Math.abs(xs[1] - xs[2]);
+    const dca = Math.abs(xs[2] - xs[0]);
+    if (dab >= dbc && dab >= dca) {
+      const m = mid(a, b);
+      split(a, m, c, depth + 1);
+      split(m, b, c, depth + 1);
+    } else if (dbc >= dca) {
+      const m = mid(b, c);
+      split(a, b, m, depth + 1);
+      split(a, m, c, depth + 1);
+    } else {
+      const m = mid(c, a);
+      split(a, b, m, depth + 1);
+      split(m, b, c, depth + 1);
+    }
+  };
+  for (let i = 0; i < pos.count; i += 3) split(vertex(i), vertex(i + 1), vertex(i + 2), 0);
+  const res = new BufferGeometry();
+  names.forEach((n, a) => res.setAttribute(n, new BufferAttribute(new Float32Array(out[a]), sizes[a])));
+  return res;
+}
+
+/** The track frame x metres along from the station centre: point, unit tangent and unit right. */
+export type TrackFrame = (x: number) => { px: number; pz: number; tx: number; tz: number };
+
+/**
+ * Bend station-local geometry (x along the track, z to its right, y up) onto
+ * the real, possibly curved track: each vertex goes to the track point x
+ * metres along, offset z to the right there. Normals turn with the track.
+ * Returns world-space geometry (subdivided first so walls curve smoothly).
+ */
+export function bendToTrack(geo: BufferGeometry, frame: TrackFrame, maxDx = 3): BufferGeometry {
+  const g = subdivideAlongX(geo, maxDx);
+  const pos = g.getAttribute("position") as BufferAttribute;
+  const nor = g.getAttribute("normal") as BufferAttribute | undefined;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const f = frame(x);
+    // Right of the tangent (tx, tz) is (-tz, tx).
+    pos.setXYZ(i, f.px - f.tz * z, pos.getY(i), f.pz + f.tx * z);
+    if (nor) {
+      const nx = nor.getX(i);
+      const nz = nor.getZ(i);
+      nor.setXYZ(i, f.tx * nx - f.tz * nz, nor.getY(i), f.tz * nx + f.tx * nz);
+    }
+  }
+  g.computeBoundingSphere();
+  return g;
 }

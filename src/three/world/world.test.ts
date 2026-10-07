@@ -188,3 +188,19 @@ test("landmarks stand at the same place, facing the same way, on every route", a
   }
   assert.ok(shared >= 3, `checked ${shared} landmarks on more than one route`);
 });
+
+test("underground halls bend to a curved track: walls keep their distance from it", async () => {
+  const { bendToTrack } = await import("../stationModel.ts");
+  const { BoxGeometry } = await import("three");
+  // A wall 13 m right of the track, 116 m long; track on a 240 m radius curve.
+  const wall = new BoxGeometry(116, 8, 0.6).translate(0, 4, 13).toNonIndexed();
+  const R = 240;
+  const frame = (x: number) => ({ px: R * Math.sin(x / R), pz: R - R * Math.cos(x / R), tx: Math.cos(x / R), tz: Math.sin(x / R) });
+  const g = bendToTrack(wall, frame, 3);
+  const pos = g.getAttribute("position");
+  for (let i = 0; i < pos.count; i++) {
+    // Distance from the curve's centre (0, R): the wall's faces sit at R - 12.7 and R - 13.3.
+    const r = Math.hypot(pos.getX(i), pos.getZ(i) - R);
+    assert.ok(r > R - 13.35 && r < R - 12.65, `vertex ${i} at radius ${r.toFixed(2)}`);
+  }
+});
