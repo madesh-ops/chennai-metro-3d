@@ -157,3 +157,34 @@ test("footbridge: walkway at its floor height, tower at the far end", async () =
   g.steel.computeBoundingBox();
   assert.ok(g.steel.boundingBox!.min.y <= 0.01, "the column reaches the ground");
 });
+
+test("tunnels stop at underground station halls (the hall encloses the tracks there)", async () => {
+  const { outsideHalls } = await import("../tunnelLayout.ts");
+  assert.deepEqual(outsideHalls(0, 500, [[100, 200]]), [
+    [0, 100],
+    [200, 500],
+  ]);
+  assert.deepEqual(outsideHalls(150, 180, [[100, 200]]), []);
+  assert.deepEqual(outsideHalls(0, 500, [[-50, 20], [480, 600]]), [[20, 480]]);
+});
+
+test("landmarks stand at the same place, facing the same way, on every route", async () => {
+  const { getRouteModel } = await import("../../simulation/data.ts");
+  const { landmarkFootprints } = await import("../landmarkLayout.ts");
+  const seen = new Map<string, { x: number; z: number; yaw: number; route: string }>();
+  let shared = 0;
+  for (const id of ["line-4-poonamallee-vadapalani", "line-2-central-st-thomas-mount", "line-4-vadapalani-lighthouse", "line-5-madhavaram-sholinganallur"]) {
+    for (const f of landmarkFootprints(getRouteModel(id))) {
+      const prev = seen.get(f.placement.landmark.id);
+      if (!prev) {
+        seen.set(f.placement.landmark.id, { ...f.world, route: id });
+        continue;
+      }
+      shared++;
+      const off = Math.hypot(prev.x - f.world.x, prev.z - f.world.z);
+      assert.ok(off < 0.5, `${f.placement.landmark.id}: ${off.toFixed(1)} m apart on ${prev.route} and ${id}`);
+      assert.ok(Math.abs(Math.sin(prev.yaw - f.world.yaw)) < 1e-6 && Math.cos(prev.yaw - f.world.yaw) > 0, `${f.placement.landmark.id} turned`);
+    }
+  }
+  assert.ok(shared >= 3, `checked ${shared} landmarks on more than one route`);
+});

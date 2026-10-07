@@ -148,10 +148,8 @@ export function Landmarks({ shadows }: { shadows: boolean }) {
       .map((f) => {
         const p = f.placement;
         const model = buildLandmarkModel(p.type, p.along, p.depth, p.height, hashString(p.landmark.id) % 1000);
-        const pt = route.alignment.offsetPoint(f.distance, f.lateral);
-        // Models face -z; turn them so the front looks at the road.
-        const yaw = route.alignment.heading(f.distance) + (f.side < 0 ? Math.PI : 0);
-        const matrix = composeMatrix(new Matrix4(), pt.x, 0, pt.z, yaw);
+        // Same place and facing on every route (see landmarkFootprints).
+        const matrix = composeMatrix(new Matrix4(), f.world.x, 0, f.world.z, f.world.yaw);
         return { f, model, matrix };
       });
   }, [route, range]);

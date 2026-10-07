@@ -240,6 +240,7 @@ export function buildUndergroundStation(d: StationDims): StationGeometry {
   const out: Record<keyof StationGeometry, BufferGeometry[]> = { concrete: [], platformTop: [], tactile: [], roof: [], steel: [], glass: [], facade: [], lights: [] };
   const R = d.rail;
   const L = d.platformLength;
+  // Keep in step with UG_HALL_END in Track.tsx (the tunnel box stops at these end walls).
   const X = L / 2 + 12;
   const edge = d.trackCentres / 2 + 1.52;
   const outer = UG_HALF - 0.6;

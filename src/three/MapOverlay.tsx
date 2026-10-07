@@ -127,7 +127,7 @@ export function MapOverlay({ highlightIds }: { highlightIds: string[] }) {
   const landmarks = useMemo(
     () =>
       landmarkFootprints(route).map((f) => {
-        const p = route.alignment.offsetPoint(f.distance, f.lateral);
+        const p = f.world;
         // Pins only: landmarks sit too close to stations for readable labels at map scale.
         return { id: f.placement.landmark.id, x: p.x, z: p.z };
       }),

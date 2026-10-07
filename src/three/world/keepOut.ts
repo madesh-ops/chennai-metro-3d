@@ -44,11 +44,9 @@ export function routeKeepOutData(route: RouteModel, range: [number, number]): Ke
   const rects: number[] = [];
   for (const f of landmarkFootprints(route)) {
     if (f.placement.type === "lake") continue; // the real lake outline comes from OSM
-    const c = alignment.offsetPoint(f.distance, f.lateral);
-    const a = alignment.point(f.distance - 1);
-    const b = alignment.point(f.distance + 1);
-    const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-    rects.push(c.x, c.z, (b.x - a.x) / l, (b.z - a.z) / l, f.along / 2 + 8, f.depth / 2 + 8);
+    // The model's own frame: local +x (its length) after the yaw turn.
+    const { x, z, yaw } = f.world;
+    rects.push(x, z, Math.cos(yaw), -Math.sin(yaw), f.along / 2 + 8, f.depth / 2 + 8);
   }
   // Line 5 branch viaducts and the roads under them.
   for (const s of branchLayout(route)?.samples ?? []) add(s.x, s.z, s.half);

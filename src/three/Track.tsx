@@ -15,6 +15,7 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { useScene } from "./SceneContext.tsx";
+import { outsideHalls, UG_HALL_END } from "./tunnelLayout.ts";
 import type { Alignment } from "../simulation/Alignment.ts";
 import { chunkRanges, composeMatrix, rectProfile, sweepProfile, type ProfilePoint } from "../utils/geometry.ts";
 import { makeConcreteTexture, makeTrackBedTexture } from "./textures.ts";
@@ -194,11 +195,21 @@ export function Track() {
   const height = useMemo(() => ({ heightAt: railAt }), [railAt]);
 
   // Viaduct deck, open trough or tunnel box per stretch, in chunks; track beds and rails throughout.
+  // Underground station halls (as buildUndergroundStation: platform length + 12 m each end).
+  // The hall encloses the tracks there, so the tunnel box stops at its end walls.
+  const halls = useMemo(
+    () =>
+      route.stations
+        .filter((st) => railAt(st.distance) < 0)
+        .map((st) => [st.distance - (params.platformLength / 2 + UG_HALL_END), st.distance + (params.platformLength / 2 + UG_HALL_END)] as [number, number]),
+    [route.stations, railAt, params.platformLength],
+  );
+
   const chunks = useMemo(() => {
-    const out: { key: string; kind: TrackStructure; structure: BufferGeometry; bed: BufferGeometry; rails: BufferGeometry; lights?: BufferGeometry }[] = [];
+    const out: { key: string; kind: TrackStructure; structure: BufferGeometry | null; bed: BufferGeometry; rails: BufferGeometry; lights?: BufferGeometry }[] = [];
     for (const sp of spans) {
       for (const [a, b] of chunkRanges(sp.a, sp.b, CHUNK)) {
-        let structure: BufferGeometry;
+        let structure: BufferGeometry | null;
         let lights: BufferGeometry | undefined;
         if (sp.kind === "viaduct") {
           structure = sweepProfile(alignment, a, b, 5, DECK_PROFILE, { ...height, closed: true, uPerMetre: 1 / 8, vPerMetre: 1 / 4 });
@@ -211,27 +222,34 @@ export function Track() {
             vPerMetre: 1 / 4,
           });
         } else {
-          // Cut-and-cover box: floor slab, two walls, roof slab (each faces outward; seen from inside).
+          // Cut-and-cover box: floor slab, two walls, roof slab (each faces outward; seen from inside),
+          // left out inside underground station halls (whose walls stand on the platforms' far side).
           const o = { ...height, closed: true, uPerMetre: 1 / 8, vPerMetre: 1 / 4 };
-          structure = mergeGeometries([
-            sweepProfile(alignment, a, b, 5, rectProfile(-TUNNEL_HALF - WALL, TUNNEL_HALF + WALL, -1.2, VIADUCT.deckTop), o),
-            sweepProfile(alignment, a, b, 5, rectProfile(TUNNEL_HALF, TUNNEL_HALF + WALL, VIADUCT.deckTop, TUNNEL_ROOF), o),
-            sweepProfile(alignment, a, b, 5, rectProfile(-TUNNEL_HALF - WALL, -TUNNEL_HALF, VIADUCT.deckTop, TUNNEL_ROOF), o),
-            sweepProfile(alignment, a, b, 5, rectProfile(-TUNNEL_HALF - WALL, TUNNEL_HALF + WALL, TUNNEL_ROOF, TUNNEL_ROOF + 0.8), o),
-            // Cable trays along both walls.
-            sweepProfile(alignment, a, b, 5, rectProfile(TUNNEL_HALF - 0.35, TUNNEL_HALF, 1.6, 1.75), o),
-            sweepProfile(alignment, a, b, 5, rectProfile(-TUNNEL_HALF, -TUNNEL_HALF + 0.35, 1.6, 1.75), o),
-          ])!;
-          lights = mergeGeometries([
-            sweepProfile(alignment, a, b, 5, rectProfile(TUNNEL_HALF - 0.08, TUNNEL_HALF, 3.6, 3.75), o),
-            sweepProfile(alignment, a, b, 5, rectProfile(-TUNNEL_HALF, -TUNNEL_HALF + 0.08, 3.6, 3.75), o),
-          ])!;
+          const parts: BufferGeometry[] = [];
+          const lightParts: BufferGeometry[] = [];
+          for (const [p0, p1] of outsideHalls(a, b, halls)) {
+            parts.push(
+              sweepProfile(alignment, p0, p1, 5, rectProfile(-TUNNEL_HALF - WALL, TUNNEL_HALF + WALL, -1.2, VIADUCT.deckTop), o),
+              sweepProfile(alignment, p0, p1, 5, rectProfile(TUNNEL_HALF, TUNNEL_HALF + WALL, VIADUCT.deckTop, TUNNEL_ROOF), o),
+              sweepProfile(alignment, p0, p1, 5, rectProfile(-TUNNEL_HALF - WALL, -TUNNEL_HALF, VIADUCT.deckTop, TUNNEL_ROOF), o),
+              sweepProfile(alignment, p0, p1, 5, rectProfile(-TUNNEL_HALF - WALL, TUNNEL_HALF + WALL, TUNNEL_ROOF, TUNNEL_ROOF + 0.8), o),
+              // Cable trays along both walls.
+              sweepProfile(alignment, p0, p1, 5, rectProfile(TUNNEL_HALF - 0.35, TUNNEL_HALF, 1.6, 1.75), o),
+              sweepProfile(alignment, p0, p1, 5, rectProfile(-TUNNEL_HALF, -TUNNEL_HALF + 0.35, 1.6, 1.75), o),
+            );
+            lightParts.push(
+              sweepProfile(alignment, p0, p1, 5, rectProfile(TUNNEL_HALF - 0.08, TUNNEL_HALF, 3.6, 3.75), o),
+              sweepProfile(alignment, p0, p1, 5, rectProfile(-TUNNEL_HALF, -TUNNEL_HALF + 0.08, 3.6, 3.75), o),
+            );
+          }
+          structure = parts.length ? mergeGeometries(parts)! : null;
+          lights = lightParts.length ? mergeGeometries(lightParts)! : undefined;
         }
         out.push({ key: `${sp.kind}-${a}`, kind: sp.kind, structure, lights, ...trackGeometry(alignment, a, b, params.trackCentres, params.gauge, height) });
       }
     }
     return out;
-  }, [alignment, spans, height, railAt, params.trackCentres, params.gauge]);
+  }, [alignment, spans, height, railAt, halls, params.trackCentres, params.gauge]);
 
   // Concrete headwalls where a tunnel meets an open trough (the portals).
   const portals = useMemo(() => {
@@ -315,7 +333,7 @@ export function Track() {
   useEffect(
     () => () => {
       chunks.forEach((c) => {
-        c.structure.dispose();
+        c.structure?.dispose();
         c.lights?.dispose();
         c.bed.dispose();
         c.rails.dispose();
@@ -339,7 +357,7 @@ export function Track() {
         const order = c.kind === "tunnel" ? TUNNEL_ORDER : 0;
         return (
           <group key={c.key}>
-            <mesh geometry={c.structure} material={c.kind === "viaduct" ? materials.deck : materials.tunnel} castShadow receiveShadow renderOrder={order} />
+            {c.structure && <mesh geometry={c.structure} material={c.kind === "viaduct" ? materials.deck : materials.tunnel} castShadow receiveShadow renderOrder={order} />}
             <mesh geometry={c.bed} material={materials.bed} receiveShadow renderOrder={order} />
             <mesh geometry={c.rails} material={materials.rail} renderOrder={order} />
             {c.lights && <mesh geometry={c.lights} material={materials.tunnelLight} renderOrder={order} />}
