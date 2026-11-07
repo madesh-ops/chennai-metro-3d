@@ -45,7 +45,7 @@ export const walkView = {
   dz: 0,
 };
 
-export type WalkAction = "counter" | "scan-in" | "scan-out" | "drop-ticket";
+export type WalkAction = "counter" | "bag-drop" | "security" | "bag-collect" | "scan-in" | "scan-out" | "drop-ticket";
 
 export interface WalkHud {
   /** A trip is in progress in Walk mode. */

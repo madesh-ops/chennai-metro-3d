@@ -12,7 +12,7 @@ import type { RouteModel, StationModel } from "../simulation/RouteController.ts"
  * A generic layout, not a survey of any real station:
  *
  *   street stairs at the four corners → concourse (ticket office in the
- *   west hall) → entry gates → paid area → escalators up to each platform;
+ *   west hall) → security check → entry gates → paid area → escalators up to each platform;
  *   back down → exit gates → east hall (used-ticket box) → stairs → street.
  *
  * Free of three.js so the HUD and the tests can import it.
@@ -38,6 +38,37 @@ export const CONCOURSE = {
   island: { x0: -8, x1: 16, z: 12.5 },
   /** Fare-gate lanes (centres across the hall) on the island's west (entry) and east (exit) faces. */
   gate: { lanes: [-2.25, -0.75, 0.75, 2.25], pitch: 1.5, cabinetWidth: 0.35, cabinetLength: 1.3, cabinetHeight: 1.0 },
+  /**
+   * Security check in front of the entry gates. Bags go on the X-ray belt on
+   * the -z side and ride through the machine, past the operator's monitor, to
+   * the railed area before the gates. Passengers take either lane through a
+   * door-frame detector: men's (open) or women's (a green enclosure). Staff
+   * scan them there, and a barrier at the lane's end lets them on to their bag.
+   */
+  security: {
+    frameX: -13,
+    frameHalf: 0.6,
+    frameHeight: 2.2,
+    barrierX: -10.6,
+    penHalf: 3.6,
+    lanes: [
+      { id: "men", z0: -1, z1: 1, frameZ: 0, spot: { x: -11.5, z: -0.3 }, guard: { x: -11.5, z: 0.65 } },
+      { id: "women", z0: 1, z1: 3.6, frameZ: 2.3, spot: { x: -11.75, z: 1.95 }, guard: { x: -11.75, z: 3.1 } },
+    ],
+    /** The women's enclosure: curtains on all sides, with a doorway in line with the detector and one opposite. */
+    enclosure: { x0: -12.5, x1: -11, height: 2.2 },
+    belt: { x0: -15.6, x1: -9.2, z0: -3.5, z1: -2.7, top: 0.75, speed: 0.6, midLeg: -11.6 },
+    machine: { x0: -13.7, x1: -12.3, z0: -3.7, z1: -2.5, height: 1.75, tunnel: 0.5 },
+    /** Where a bag is put down and where it stops, along the belt. */
+    bagFrom: -14.8,
+    bagTo: -9.6,
+    /** The operator stands in the rails between the machine and the men's lane, with the monitor on a desk. */
+    operator: { x: -11.4, z: -1.5 },
+    desk: { x0: -12.5, x1: -11.2, z0: -2.45, z1: -1.95, height: 0.8 },
+    monitor: { x: -12, z: -2.2, width: 0.62, height: 0.42, stand: 0.14 },
+  },
+  /** A guard standing past the exit gates, facing those coming through. */
+  exitGuard: { x: 17.6, z: 4.2 },
   /** Ticket office in the west hall; its windows face west. */
   office: { x0: -24.4, x1: -18.6, halfZ: 4.4, windows: [-2.2, 2.2], windowHalf: 0.9, shelf: 0.32 },
   /** Used-ticket box in the east hall, just past the exit gates. */
@@ -139,6 +170,9 @@ export function stationWalkable(route: RouteModel, st: StationModel): boolean {
 /** Barrier ids of the gate lanes (`entry-0`…, `exit-0`…), nearest lane first for a given z. */
 export const gateId = (kind: "entry" | "exit", lane: number) => `${kind}-${lane}`;
 
+/** Barrier id at the end of a security lane (index into CONCOURSE.security.lanes). */
+export const securityBarrier = (lane: number) => `security-${CONCOURSE.security.lanes[lane].id}`;
+
 /** Sides of the station: -1 = left of +x (z < 0), +1 = right. */
 export type Side = 1 | -1;
 
@@ -234,6 +268,36 @@ export function stationWalkSpace(plan: ConcoursePlan): WalkSpace {
     }
   }
 
+  // Security check: the machine, belt and rails close off the gates, so the only way to them is through a lane.
+  {
+    const S = C.security;
+    const box = (x0: number, x1: number, z0: number, z1: number, height = 1.2) => obstacles.push({ x0: Math.min(x0, x1), x1: Math.max(x0, x1), z0: Math.min(z0, z1), z1: Math.max(z0, z1), y0: F, y1: F + height });
+    const fx = S.frameX;
+    const [men, women] = S.lanes;
+    box(S.belt.x0, S.belt.x1, S.belt.z0, S.belt.z1);
+    box(S.machine.x0, S.machine.x1, S.machine.z0, S.machine.z1, S.machine.height);
+    // The line of the detectors, from the machine across to the far rail.
+    box(fx - 0.1, fx + 0.1, S.machine.z1, men.frameZ - S.frameHalf, S.frameHeight);
+    box(fx - 0.1, fx + 0.1, men.frameZ + S.frameHalf, women.frameZ - S.frameHalf, S.frameHeight);
+    box(fx - 0.1, fx + 0.1, women.frameZ + S.frameHalf, S.penHalf, S.frameHeight);
+    // Rails between the lanes, round the operator, and down both sides to the island.
+    box(fx, S.barrierX, men.z0 - 0.02, men.z0 + 0.02);
+    box(fx, S.barrierX, men.z1 - 0.02, men.z1 + 0.02);
+    box(S.barrierX - 0.02, S.barrierX + 0.02, S.belt.z1, men.z0);
+    box(S.machine.x1, C.island.x0, -S.penHalf - 0.02, -S.penHalf + 0.02);
+    box(fx, C.island.x0, S.penHalf - 0.02, S.penHalf + 0.02);
+    // The enclosure's end curtains, either side of its doorways.
+    for (const x of [S.enclosure.x0, S.enclosure.x1]) {
+      box(x - 0.03, x + 0.03, women.z0, women.frameZ - S.frameHalf, S.enclosure.height);
+      box(x - 0.03, x + 0.03, women.frameZ + S.frameHalf, women.z1, S.enclosure.height);
+    }
+    S.lanes.forEach((lane, i) => {
+      barriers.push({ id: securityBarrier(i), x0: S.barrierX - 0.1, x1: S.barrierX + 0.1, z0: lane.z0, z1: lane.z1, y0: F, y1: F + 1.2 });
+      box(lane.guard.x - 0.22, lane.guard.x + 0.22, lane.guard.z - 0.22, lane.guard.z + 0.22, 1.7);
+    });
+    box(C.exitGuard.x - 0.22, C.exitGuard.x + 0.22, C.exitGuard.z - 0.22, C.exitGuard.z + 0.22, 1.7);
+  }
+
   for (const [x, z] of C.bystanders) obstacles.push({ x0: x - 0.22, x1: x + 0.22, z0: z - 0.22, z1: z + 0.22, y0: F, y1: F + 1.7 });
   obstacles.push({ x0: C.office.x0, x1: C.office.x1, z0: -C.office.halfZ, z1: C.office.halfZ, y0: F, y1: plan.ceilY });
   // The counter shelves stick out through the windows: keep the eye out of them.
@@ -260,6 +324,11 @@ export function stationPoints(plan: ConcoursePlan, s: Side) {
     spawn: { x: -(plan.stairs.bottom + 6), z: s * (ROAD.halfWidth + ROAD.sidewalk / 2 + 0.05), y: plan.streetY } as WalkPoint,
     /** Standing at each ticket window. */
     counters: C.office.windows.map((z) => ({ x: C.office.x0 - 1.0, z, y: F }) as WalkPoint),
+    /** Where staff scan the passenger, in each security lane. */
+    security: C.security.lanes.map((l, lane) => ({ lane, x: l.spot.x, z: l.spot.z, y: F })),
+    /** Standing at each end of the X-ray belt. */
+    bagDrop: { x: C.security.bagFrom, z: C.security.belt.z1 + 0.5, y: F } as WalkPoint,
+    bagCollect: { x: C.security.bagTo, z: C.security.belt.z1 + 0.5, y: F } as WalkPoint,
     entryLanes: C.gate.lanes.map((z, lane) => ({ lane, x: C.island.x0 - 0.9, z, y: F })),
     exitLanes: C.gate.lanes.map((z, lane) => ({ lane, x: C.island.x1 - 0.9, z, y: F })),
     ticketBox: { x: C.ticketBox.x, z: C.ticketBox.z, y: F } as WalkPoint,

@@ -93,10 +93,13 @@ In Walk mode, W A S D and the arrow keys walk instead.
 
 1. Climb from the footpath to the concourse.
 2. Buy a ticket at the counter, at the CMRL fare for your journey.
-3. Scan in at a gate.
-4. Ride the escalator up; the train waits for you.
-5. Ride: walk the car and look out.
-6. At the destination, scan out, drop the ticket in the box and take the stairs to the street.
+3. Put your bag on the X-ray belt; the operator sees it on the monitor.
+4. Take the men's lane or the women's green enclosure, walk through the detector and stand for the body scan.
+5. Collect your bag at the far end of the belt.
+6. Scan in at a gate.
+7. Ride the escalator up; the train waits for you.
+8. Ride: walk the car and look out.
+9. At the destination, scan out, drop the ticket in the box and take the stairs to the street.
 
 | | Desktop | Touch |
 | --- | --- | --- |
@@ -217,7 +220,7 @@ Track and stations come from OpenStreetMap (snapshot 5 Oct 2026). Line 4 facts w
 | Flyovers and interchanges | Paths and lanes from OSM; deck height, ramps, barriers and piers are standard values |
 | Landmarks | Published coordinates, or traced from satellite views and photos; models stylised |
 | Driver's cab | After photos of the Phase II cab; screens show a generic layout |
-| Walk-mode station interiors | One generic floor plan for every elevated station, not a survey of a real one |
+| Walk-mode station interiors | One generic floor plan for every elevated station, including the security check, not a survey of a real one |
 | Crowds, shop names, hoardings, film posters | Invented |
 
 </details>

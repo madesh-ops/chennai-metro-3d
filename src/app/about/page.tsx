@@ -22,7 +22,7 @@ const ROWS: { what: string; status: "Verified" | "Reported" | "Assumed" | "Appro
   { what: "Porur–Vadapalani speed limit", status: "Reported", detail: "Raised from 25 to 40 km/h in May 2026 per news coverage of the CMRS approval." },
   { what: "Acceleration, braking, dwell", status: "Assumed", detail: "Typical metro values (1.0 m/s², 0.85 m/s², 22 s); CMRL has not published them." },
   { what: "Train livery and interior", status: "Approximate", detail: "Stylised after photos of CMRL Alstom Metropolis trainsets." },
-  { what: "Station interiors in Walk mode", status: "Procedural", detail: "One generic floor plan for every elevated station (concourse, ticket office, fare gates, escalators, street stairs, signs), not a survey of any real one. The used-ticket box at the exit is illustrative. Underground concourses are not modelled yet." },
+  { what: "Station interiors in Walk mode", status: "Procedural", detail: "One generic floor plan for every elevated station (concourse, ticket office, security check, fare gates, escalators, street stairs, signs), not a survey of any real one. The security check's layout (X-ray belt, men's lane, women's enclosure, staff) and the used-ticket box at the exit are illustrative. Underground concourses are not modelled yet." },
   { what: "Ticket bought in Walk mode", status: "Reported", detail: "A single-journey paper QR ticket from the counter at the full distance-band fare: CMRL sells these at counters, and its 20% discount does not apply to them (DT Next, 1 Sep 2026)." },
   { what: "Facades, shop names, traffic, crowds", status: "Procedural", detail: "Window patterns, invented shop names, road traffic and passengers are generated, seeded so they are the same on every visit." },
 ];

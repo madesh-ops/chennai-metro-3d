@@ -12,6 +12,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   OctahedronGeometry,
+  PlaneGeometry,
   Quaternion,
   type Texture,
   Vector3,
@@ -19,9 +20,9 @@ import {
 import { useScene } from "./SceneContext.tsx";
 import { cabinLayout } from "./trainModel.ts";
 import { TRAIN } from "./layout.ts";
-import { buildConcourse, buildEscalatorSteps } from "./concourseModel.ts";
-import { ensureFontsLoaded, makeConcourseSignAtlas } from "./textures.ts";
-import { CONCOURSE, carWalkSpace, concoursePlan, gateId, planDims, stationPoints, stationWalkSpace, stationWalkable, type ConcoursePlan, type Side, type WalkPoint } from "./walkPlan.ts";
+import { buildBag, buildConcourse, buildEscalatorSteps, buildGuardArm, CURTAIN, GUARD_SHOULDER, GUARD_SKIN } from "./concourseModel.ts";
+import { ensureFontsLoaded, makeConcourseSignAtlas, makeXrayScreen } from "./textures.ts";
+import { CONCOURSE, carWalkSpace, concoursePlan, gateId, planDims, securityBarrier, stationPoints, stationWalkSpace, stationWalkable, type ConcoursePlan, type Side, type WalkPoint } from "./walkPlan.ts";
 import { getWalkHud, lockWalkPointer, platformCrowd, releaseWalkInput, resetWalkHud, setWalkHud, showWalkNotice, subscribeWalkHud, takeWalkRequests, unlockWalkPointer, walkInput, walkPointer, walkView, type WalkHud } from "./walkState.ts";
 import { composeMatrix } from "../utils/geometry.ts";
 import { clamp, damp, dampAngle } from "../utils/interpolation.ts";
@@ -34,8 +35,10 @@ import { useViewStore } from "../simulation/store.ts";
 
 /**
  * Walk mode: the journey on foot, in first person. The passenger starts on
- * the street outside the origin station, buys a ticket at the counter, scans
- * in at a gate, rides the escalator up, boards when the doors are open,
+ * the street outside the origin station, buys a ticket at the counter, puts
+ * a bag on the X-ray belt, is scanned in the men's or women's security lane,
+ * collects the bag, scans in at a gate, rides the escalator up, boards when
+ * the doors are open,
  * rides, gets off at the destination, scans out, drops the used ticket in
  * the box and walks down to the street.
  *
@@ -57,6 +60,15 @@ const MAX_LOOK_STEP = 250;
 /** A gate lane stays open this long after a scan, or until the passenger is through. */
 const GATE_OPEN_S = 9;
 const USE_RANGE = 1.4;
+/** How long the guard takes over the body scan (seconds), and the pass of the scanner up and down. */
+const SCAN_S = 3.2;
+const SCAN_PASS_S = 1.05;
+/** The guard's arm, in radians below level: at rest, and the two ends of a pass. */
+const ARM_REST = 1.42;
+const ARM_HIGH = 0.12;
+const ARM_LOW = 1.12;
+/** The enclosure's doorway curtains draw aside for a passenger this near, and shut again behind them. */
+const CURTAIN_RANGE = 0.6;
 
 /** A local frame on the ground plane: origin and unit +x axis (the +z axis is its right-hand normal). */
 interface Frame {
@@ -170,6 +182,12 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
     stride: 0,
     lastClock: 0,
     escalator: 0,
+    /** Seconds left of the guard's body scan (0 = none under way). The passenger stands still for it. */
+    scanning: 0,
+    /** Which security lane the scan is in. */
+    scanLane: 0,
+    /** Where the bag is along the belt (null = not on it). */
+    bagX: null as number | null,
     /** Where the waypoint stands, in the current frame (for the dev probe). */
     target: null as WalkPoint | null,
     /** Dev probe: a heading to turn towards smoothly, until the passenger looks elsewhere. */
@@ -230,6 +248,8 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
       st.timers.clear();
       st.open.clear();
     }
+    s.scanning = 0;
+    s.bagX = null;
     if (s.trip.startedAboard) {
       placeAboard();
       // Nothing to walk through at the origin: the train leaves as it would for any other camera.
@@ -426,9 +446,20 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
       signs: new MeshBasicMaterial({ color: "#0d1724", toneMapped: false }),
       flap: new MeshStandardMaterial({ color: "#f0652f", roughness: 0.25, transparent: true, opacity: 0.82, emissive: new Color("#f0652f"), emissiveIntensity: 0.25 }),
       marker: new MeshBasicMaterial({ color: "#ffd23f", toneMapped: false, transparent: true, opacity: 0.92, depthTest: false }),
+      xray: new MeshBasicMaterial({ toneMapped: false }),
+      curtain: new MeshStandardMaterial({ color: CURTAIN, roughness: 0.9, emissive: new Color(CURTAIN), emissiveIntensity: 0.3 }),
     }),
     [],
   );
+  const screens = useMemo(() => ({ idle: makeXrayScreen(false), bag: makeXrayScreen(true) }), []);
+  useEffect(() => {
+    mats.xray.map = screens.idle;
+    mats.xray.needsUpdate = true;
+    return () => {
+      screens.idle.dispose();
+      screens.bag.dispose();
+    };
+  }, [mats, screens]);
   const [atlas, setAtlas] = useState<Texture | null>(null);
   useEffect(() => {
     let alive = true;
@@ -477,6 +508,14 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
     [interiors, flapGeo, mats],
   );
   const stepRefs = useRef<(Mesh | null)[]>([]);
+  const armRefs = useRef<(Mesh | null)[]>([]);
+  const barrierRefs = useRef<(Mesh | null)[]>([]);
+  const curtainRefs = useRef<(Mesh | null)[]>([]);
+  const curtainGeo = useMemo(() => new BoxGeometry(0.04, CONCOURSE.security.enclosure.height, CONCOURSE.security.frameHalf * 2), []);
+  const bagRef = useRef<Mesh>(null);
+  const guardArms = useMemo(() => GUARD_SKIN.map((skin) => buildGuardArm(skin)), []);
+  const bagGeo = useMemo(() => buildBag(), []);
+  const screenGeo = useMemo(() => new PlaneGeometry(CONCOURSE.security.monitor.width, CONCOURSE.security.monitor.height), []);
   const marker = useRef<Group>(null);
   const markerGeo = useMemo(() => new OctahedronGeometry(0.2, 0), []);
 
@@ -487,6 +526,15 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
     [interior],
   );
   useEffect(() => () => steps.geometry.dispose(), [steps]);
+  useEffect(
+    () => () => {
+      guardArms.forEach((g) => g.dispose());
+      bagGeo.dispose();
+      screenGeo.dispose();
+      curtainGeo.dispose();
+    },
+    [guardArms, bagGeo, screenGeo, curtainGeo],
+  );
   useEffect(
     () => () => {
       Object.values(mats).forEach((m) => m.dispose());
@@ -554,12 +602,37 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
         unlockWalkPointer();
         setWalkHud({ counterOpen: true });
         break;
+      case "bag-drop":
+        if (trip.dropBag()) {
+          s.bagX = CONCOURSE.security.bagFrom;
+          showWalkNotice("Your bag is on the belt. Go through a security lane and collect it at the far end.");
+        }
+        break;
+      case "bag-collect":
+        if (trip.collectBag()) {
+          s.bagX = null;
+          gateBeep(true);
+          showWalkNotice("Bag collected. Scan your ticket at an entry gate.");
+        }
+        break;
+      case "security":
+        if (trip.stage === "security") {
+          const lane = nearest(st.points.security, s.x, s.z)?.point.lane ?? 0;
+          const G = CONCOURSE.security.lanes[lane].guard;
+          s.scanning = SCAN_S;
+          s.scanLane = lane;
+          s.aim = { yaw: Math.atan2(G.z - s.z, G.x - s.x), pitch: -0.12 };
+          showWalkNotice("Stand still for the scan.");
+        } else {
+          gateBeep(false);
+          showWalkNotice(trip.stage === "buy-ticket" ? "Ticket first, please. The counter is behind you, in this hall." : "Your bag goes on the belt first. It's beside this lane, back through the detector.");
+        }
+        break;
       case "scan-in": {
         const lane = nearest(st.points.entryLanes, s.x, s.z);
         const result = trip.scanEntry();
         gateBeep(result === "ok");
         if (result === "ok" && lane) openGate(st, gateId("entry", lane.point.lane));
-        else if (result === "no-ticket") showWalkNotice("No ticket yet. The ticket counter is behind you, in this hall.");
         break;
       }
       case "scan-out": {
@@ -601,7 +674,42 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
         moved = true;
       }
       if (moved) layoutFlaps(st, flapMeshes[i]);
+      CONCOURSE.security.lanes.forEach((_, lane) => {
+        const flap = barrierRefs.current[i * 2 + lane];
+        if (flap) flap.visible = !st.open.has(securityBarrier(lane));
+        const arm = armRefs.current[i * 2 + lane];
+        if (arm) {
+          const scanning = s.scanning > 0 && st === stations.origin && s.scanLane === lane;
+          const pass = reducedMotion ? 0.5 : 0.5 - 0.5 * Math.cos(((SCAN_S - s.scanning) / SCAN_PASS_S) * Math.PI * 2);
+          const target = scanning ? ARM_HIGH + (ARM_LOW - ARM_HIGH) * pass : ARM_REST;
+          arm.rotation.x = reducedMotion ? target : damp(arm.rotation.x, target, 10, dt);
+        }
+      });
+      // The enclosure stays shut: its curtains gather to one side only while the passenger is at them.
+      const { enclosure, frameHalf, lanes } = CONCOURSE.security;
+      const women = lanes[1];
+      [enclosure.x0, enclosure.x1].forEach((x, d) => {
+        const curtain = curtainRefs.current[i * 2 + d];
+        if (!curtain) return;
+        const here = isWalking && s.where !== "car" && stations[s.where] === st && Math.abs(s.y - plan.floorY) < 0.3;
+        // Never during a scan: that is what the enclosure is for.
+        const near = here && s.scanning === 0 && Math.abs(s.x - x) < CURTAIN_RANGE && Math.abs(s.z - women.frameZ) < frameHalf + 0.5;
+        const target = near ? 0.08 : 1;
+        const width = reducedMotion ? target : damp(curtain.scale.z, target, 12, dt);
+        curtain.scale.z = width;
+        curtain.position.z = women.frameZ + frameHalf * (1 - width);
+      });
     });
+
+    // The bag rides the belt whichever way the passenger is looking, and the operator's screen shows it from the machine on.
+    const X = CONCOURSE.security;
+    if (s.bagX !== null) s.bagX = Math.min(X.bagTo, s.bagX + X.belt.speed * dt);
+    if (bagRef.current) {
+      bagRef.current.visible = s.bagX !== null;
+      if (s.bagX !== null) bagRef.current.position.x = s.bagX;
+    }
+    const screen = s.bagX !== null && s.bagX > X.machine.x0 ? screens.bag : screens.idle;
+    if (mats.xray.map !== screen) mats.xray.map = screen;
 
     if (!isWalking) {
       if (s.wasWalking) {
@@ -627,10 +735,18 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
       else if (r === "buy-ticket" && s.trip!.buyTicket()) {
         gateBeep(true);
         setWalkHud({ counterOpen: false });
-        showWalkNotice("Ticket bought. Scan it at an entry gate.");
+        showWalkNotice("Ticket bought. Put your bag on the X-ray belt at the security check.");
       }
     }
     const trip = s.trip!;
+    if (s.scanning > 0) {
+      s.scanning = Math.max(0, s.scanning - dt);
+      if (s.scanning === 0 && trip.clearSecurity()) {
+        stations.origin.open.add(securityBarrier(s.scanLane));
+        gateBeep(true);
+        showWalkNotice("All clear. Collect your bag at the end of the belt.");
+      }
+    }
     s.lastClock = engine.clock.time;
     engine.setHeld(trip.holdsTrain);
     const hud = getWalkHud();
@@ -649,7 +765,7 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
     // Move: wish velocity in the frame's axes, eased so starts and stops are not abrupt.
     let f = clamp(walkInput.forward + walkInput.stickForward, -1, 1);
     let r = clamp(walkInput.strafe + walkInput.stickStrafe, -1, 1);
-    if (hud.counterOpen) f = r = 0;
+    if (hud.counterOpen || s.scanning > 0) f = r = 0;
     const len = Math.hypot(f, r);
     if (len > 1) {
       f /= len;
@@ -705,6 +821,9 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
       const res = walk(st.space, s, dx, dz, dt, st.open);
       let pad: Pad | null = null;
       if (res) {
+        // The detector chimes as the passenger steps through it on the way to the guard.
+        const { frameX, frameHalf, lanes } = CONCOURSE.security;
+        if (s.where === "origin" && trip.stage === "security" && Math.abs(s.y - plan.floorY) < 0.3 && s.x < frameX && res.x >= frameX && lanes.some((l) => Math.abs(s.z - l.frameZ) < frameHalf)) gateBeep(true);
         s.x = res.x;
         s.z = res.z;
         s.y = res.y;
@@ -760,8 +879,17 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
       if (onFloor && s.where === "origin") {
         const counter = nearest(st.points.counters, s.x, s.z);
         const lane = nearest(st.points.entryLanes, s.x, s.z);
+        const S = CONCOURSE.security;
+        const inLane = s.x > S.frameX && s.x < S.barrierX && s.z > S.lanes[0].z0 && s.z < S.penHalf;
+        const near = (p: WalkPoint) => Math.hypot(p.x - s.x, p.z - s.z) < USE_RANGE;
         if (trip.stage === "buy-ticket" && counter && counter.dist < USE_RANGE) prompt = { action: "counter", label: "Buy a ticket" };
-        else if (!trip.reached("to-platform") && lane && lane.dist < USE_RANGE) prompt = { action: "scan-in", label: "Scan your ticket" };
+        // From either side of the belt: which side the passenger reaches it from depends on the platform.
+        else if (trip.stage === "drop-bag" && Math.abs(s.x - S.bagFrom) < USE_RANGE && Math.abs(s.z - (S.belt.z0 + S.belt.z1) / 2) < USE_RANGE) prompt = { action: "bag-drop", label: "Put your bag on the belt" };
+        else if (trip.stage === "collect-bag" && s.bagX === S.bagTo && near(st.points.bagCollect)) prompt = { action: "bag-collect", label: "Take your bag" };
+        else if (inLane && !trip.reached("collect-bag")) {
+          const spot = nearest(st.points.security, s.x, s.z);
+          if (s.scanning === 0 && spot && spot.dist < USE_RANGE) prompt = { action: "security", label: "Stand for the body scan" };
+        } else if (trip.stage === "enter-gate" && lane && lane.dist < USE_RANGE) prompt = { action: "scan-in", label: "Scan your ticket" };
       } else if (onFloor && s.where === "destination") {
         const lane = nearest(st.points.exitLanes, s.x, s.z);
         if (trip.stage === "exit-gate" && lane && lane.dist < USE_RANGE) prompt = { action: "scan-out", label: "Scan your ticket" };
@@ -807,6 +935,15 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
       switch (trip.target) {
         case "counter":
           target = nearest(pts.counters, s.x, s.z)?.point ?? null;
+          break;
+        case "bag-drop":
+          target = pts.bagDrop;
+          break;
+        case "security":
+          target = nearest(pts.security, s.x, s.z)?.point ?? null;
+          break;
+        case "bag-collect":
+          target = pts.bagCollect;
           break;
         case "entry-gate":
           target = nearest(pts.entryLanes, s.x, s.z)?.point ?? null;
@@ -871,6 +1008,48 @@ export function WalkMode({ engine, reducedMotion }: { engine: SimulationEngine; 
       ))}
       {interiors.map((st, i) => (
         <group key={st.station.id} matrix={st.matrix} matrixAutoUpdate={false}>
+          {CONCOURSE.security.lanes.map((lane, l) => (
+            <group key={lane.id}>
+              <group position={[lane.guard.x, plan.floorY, lane.guard.z]} rotation={[0, Math.PI, 0]}>
+                <mesh
+                  ref={(mesh) => {
+                    armRefs.current[i * 2 + l] = mesh;
+                  }}
+                  geometry={guardArms[l]}
+                  material={mats.solid}
+                  position={[GUARD_SHOULDER[l].x, GUARD_SHOULDER[l].y, GUARD_SHOULDER[l].z]}
+                  rotation={[ARM_REST, 0, 0]}
+                />
+              </group>
+              <mesh
+                ref={(mesh) => {
+                  barrierRefs.current[i * 2 + l] = mesh;
+                }}
+                geometry={flapGeo}
+                material={mats.flap}
+                position={[CONCOURSE.security.barrierX, plan.floorY + 0.62, (lane.z0 + lane.z1) / 2]}
+                scale={[1, 1, lane.z1 - lane.z0]}
+              />
+            </group>
+          ))}
+          {[CONCOURSE.security.enclosure.x0, CONCOURSE.security.enclosure.x1].map((x, d) => (
+            <mesh
+              key={x}
+              ref={(mesh) => {
+                curtainRefs.current[i * 2 + d] = mesh;
+              }}
+              geometry={curtainGeo}
+              material={mats.curtain}
+              position={[x, plan.floorY + CONCOURSE.security.enclosure.height / 2, CONCOURSE.security.lanes[1].frameZ]}
+            />
+          ))}
+          <mesh
+            geometry={screenGeo}
+            material={mats.xray}
+            position={[CONCOURSE.security.monitor.x, plan.floorY + CONCOURSE.security.desk.height + CONCOURSE.security.monitor.stand + CONCOURSE.security.monitor.height / 2, CONCOURSE.security.monitor.z]}
+            rotation={[0, Math.PI / 4, 0]}
+          />
+          {st === stations.origin && <mesh ref={bagRef} geometry={bagGeo} material={mats.solid} position={[CONCOURSE.security.bagFrom, plan.floorY + CONCOURSE.security.belt.top, (CONCOURSE.security.belt.z0 + CONCOURSE.security.belt.z1) / 2]} visible={false} />}
           {([-1, 1] as const).flatMap((side, a) =>
             [CONCOURSE.escalator.up, CONCOURSE.escalator.down].map((lane, b) => (
               <mesh

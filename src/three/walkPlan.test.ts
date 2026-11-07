@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { reachablePads, standAt, walk } from "../simulation/walkSpace.ts";
-import { carWalkSpace, concoursePlan, CONCOURSE, gateId, stationPoints, stationWalkSpace } from "./walkPlan.ts";
+import { carWalkSpace, concoursePlan, CONCOURSE, gateId, securityBarrier, stationPoints, stationWalkSpace } from "./walkPlan.ts";
 import { STATION } from "./layout.ts";
 
 const dims = { rail: 18, platformLength: 92, platformHeight: 1.1, trackCentres: 4.2 };
@@ -26,11 +26,56 @@ test("from the street, the platform is reached only through an entry gate", () =
     const pts = stationPoints(plan, s);
     assert.ok(standAt(space, pts.spawn.x, pts.spawn.z, pts.spawn.y), "spawn is on the footpath");
     const closed = reachablePads(space, pts.spawn);
-    for (const id of ["hall-west", "hall-east", "corridor-l", "corridor-r", "street-el", "street-er", "entry-lane-0"]) assert.ok(closed.has(id), `${id} reachable without a ticket`);
-    for (const id of ["island", "escalator-up-l", "landing-r", "platform-l", "platform-r"]) assert.ok(!closed.has(id), `${id} is behind the gates`);
-    const open = reachablePads(space, pts.spawn, entry);
+    for (const id of ["hall-west", "hall-east", "corridor-l", "corridor-r", "street-el", "street-er"]) assert.ok(closed.has(id), `${id} reachable without a ticket`);
+    for (const id of ["entry-lane-0", "island", "escalator-up-l", "landing-r", "platform-l", "platform-r"]) assert.ok(!closed.has(id), `${id} is behind the security check`);
+    assert.ok(!reachablePads(space, pts.spawn, entry).has("island"), "the gates cannot be reached around the security check");
+    // Clearing either lane is enough to reach the bag and every gate lane.
+    for (const lane of [0, 1]) {
+      const cleared = reachablePads(space, pts.spawn, new Set([securityBarrier(lane)]));
+      for (const id of CONCOURSE.gate.lanes.map((_, i) => `entry-lane-${i}`)) assert.ok(cleared.has(id), `${id} reachable once cleared`);
+      assert.ok(!cleared.has("island"), "the fare gates are still closed");
+    }
+    const open = reachablePads(space, pts.spawn, new Set([securityBarrier(0), ...entry]));
     for (const id of ["island", "escalator-up-l", "escalator-up-r", "landing-l", "screen-gap-r", "platform-l", "platform-r"]) assert.ok(open.has(id), `${id} reachable with the gates open`);
   }
+});
+
+/** Is there a way on foot between two points, with these barriers open? Pads alone can't say: both lanes share the hall's. */
+function connected(from: { x: number; z: number; y: number }, to: { x: number; z: number }, open: ReadonlySet<string>): boolean {
+  const cell = 0.1;
+  const seen = new Set<string>();
+  const queue = [from];
+  while (queue.length) {
+    const p = queue.pop()!;
+    if (Math.hypot(p.x - to.x, p.z - to.z) < cell * 1.5) return true;
+    for (const [dx, dz] of [[cell, 0], [-cell, 0], [0, cell], [0, -cell]]) {
+      const x = p.x + dx;
+      const z = p.z + dz;
+      if (x < -20 || x > -7 || Math.abs(z) > 6) continue;
+      const key = `${x.toFixed(2)}:${z.toFixed(2)}`;
+      if (seen.has(key) || !standAt(space, x, z, p.y, open)) continue;
+      seen.add(key);
+      queue.push({ x, z, y: p.y });
+    }
+  }
+  return false;
+}
+
+test("security: the bag is reached only by way of a lane, and both lanes can be walked", () => {
+  const pts = stationPoints(plan, 1);
+  const hall = { x: -16, z: 0, y: plan.floorY };
+  const none = new Set<string>();
+  assert.ok(connected(hall, pts.bagDrop, none), "the belt's near end is in the hall");
+  assert.ok(!connected(hall, pts.bagCollect, none), "the far end of the belt is behind the barriers");
+  pts.security.forEach((spot, lane) => {
+    assert.ok(connected(hall, spot, none), `the ${CONCOURSE.security.lanes[lane].id} lane opens from the hall`);
+    assert.ok(connected(spot, pts.bagCollect, new Set([securityBarrier(lane)])), "its barrier leads to the bag");
+    assert.ok(!connected(spot, pts.bagCollect, none), "and only its barrier");
+  });
+  // The exit guard stands clear of the way out.
+  const G = CONCOURSE.exitGuard;
+  assert.equal(standAt(space, G.x, G.z, plan.floorY), null, "the exit guard is in the way like anyone else");
+  assert.ok(standAt(space, G.x, 0, plan.floorY), "and leaves the exit lanes clear");
 });
 
 test("from the platform, the street is reached only through an exit gate", () => {
@@ -45,7 +90,7 @@ test("from the platform, the street is reached only through an exit gate", () =>
 test("everything the passenger uses can be stood at", () => {
   for (const s of [-1, 1] as const) {
     const pts = stationPoints(plan, s);
-    const spots = [pts.spawn, ...pts.counters, ...pts.entryLanes, ...pts.exitLanes, pts.escalatorFoot, pts.platform, pts.escalatorHead, pts.street];
+    const spots = [pts.spawn, ...pts.counters, ...pts.security, pts.bagDrop, pts.bagCollect, ...pts.entryLanes, ...pts.exitLanes, pts.escalatorFoot, pts.platform, pts.escalatorHead, pts.street];
     for (const p of spots) assert.ok(standAt(space, p.x, p.z, p.y), `(${p.x}, ${p.z}, ${p.y})`);
     // The ticket box is furniture: you stand beside it, not on it.
     assert.equal(standAt(space, pts.ticketBox.x, pts.ticketBox.z, pts.ticketBox.y), null);

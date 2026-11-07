@@ -96,6 +96,15 @@ test("a full trip runs through every stage in order", () => {
   assert.equal(trip.board(), false, "no boarding without passing the gate");
   step(() => trip.buyTicket());
   assert.equal(trip.buyTicket(), false, "one ticket per trip");
+  assert.equal(trip.scanEntry(), "not-cleared", "no gate before the security check");
+  assert.equal(trip.clearSecurity(), false, "the bag goes on the belt before the body scan");
+  step(() => assert.ok(trip.dropBag()));
+  assert.equal(trip.dropBag(), false, "one bag per trip");
+  assert.equal(trip.collectBag(), false, "the bag comes back only after the body scan");
+  step(() => assert.ok(trip.clearSecurity()));
+  assert.equal(trip.clearSecurity(), false, "one check per trip");
+  assert.equal(trip.scanEntry(), "not-cleared", "no gate without the bag");
+  step(() => assert.ok(trip.collectBag()));
   step(() => assert.equal(trip.scanEntry(), "ok"));
   assert.equal(trip.scanEntry(), "already-scanned");
   step(() => trip.reachPlatform());
@@ -110,7 +119,7 @@ test("a full trip runs through every stage in order", () => {
   step(() => assert.ok(trip.dropTicket()));
   assert.ok(!trip.hasTicket && trip.ticketDropped);
   step(() => trip.reachStreet());
-  assert.deepEqual(seen, ["buy-ticket", "enter-gate", "to-platform", "board", "riding", "alight", "exit-gate", "drop-ticket", "leave-station", "done"]);
+  assert.deepEqual(seen, ["buy-ticket", "drop-bag", "security", "collect-bag", "enter-gate", "to-platform", "board", "riding", "alight", "exit-gate", "drop-ticket", "leave-station", "done"]);
   assert.equal(trip.target, "none");
 });
 
@@ -135,11 +144,17 @@ test("stations that cannot be walked through are skipped", () => {
 
 test("every stage has an objective and a sensible target", () => {
   const names = { from: "Porur", to: "Vadapalani" };
-  const stages: TripStage[] = ["buy-ticket", "enter-gate", "to-platform", "board", "riding", "alight", "exit-gate", "drop-ticket", "leave-station", "done"];
+  const stages: TripStage[] = ["buy-ticket", "drop-bag", "security", "collect-bag", "enter-gate", "to-platform", "board", "riding", "alight", "exit-gate", "drop-ticket", "leave-station", "done"];
   for (const s of stages) assert.ok(tripObjective(s, names).length > 5, s);
   assert.match(tripObjective("buy-ticket", names), /Vadapalani/);
   const trip = new PassengerTrip({ originWalkable: true, destinationWalkable: true });
   assert.equal(trip.target, "counter");
   trip.buyTicket();
+  assert.equal(trip.target, "bag-drop");
+  trip.dropBag();
+  assert.equal(trip.target, "security");
+  trip.clearSecurity();
+  assert.equal(trip.target, "bag-collect");
+  trip.collectBag();
   assert.equal(trip.target, "entry-gate");
 });
