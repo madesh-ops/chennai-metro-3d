@@ -15,7 +15,7 @@ import { TicketQr } from "./TicketCard";
 /** How long a notice stays up (ms). */
 const NOTICE_MS = 4200;
 
-const STEPS: WalkHudState["stage"][] = ["buy-ticket", "enter-gate", "to-platform", "board", "riding", "alight", "exit-gate", "drop-ticket", "leave-station"];
+const STEPS: WalkHudState["stage"][] = ["buy-ticket", "drop-bag", "security", "collect-bag", "enter-gate", "to-platform", "board", "riding", "alight", "exit-gate", "drop-ticket", "leave-station"];
 
 function Key({ children }: { children: React.ReactNode }) {
   return <kbd className="inline-block min-w-7 rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-center font-mono text-[12px] text-ink">{children}</kbd>;

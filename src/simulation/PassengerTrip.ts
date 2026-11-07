@@ -1,8 +1,9 @@
 /**
  * The passenger's own journey in Walk mode, as a small state machine:
  *
- *   buy a ticket → scan in at the gate → reach the platform → board →
- *   ride → alight → scan out → drop the used ticket → leave the station.
+ *   buy a ticket → put the bag on the X-ray belt → body scan → collect the bag →
+ *   scan in at the gate → reach the platform → board → ride → alight →
+ *   scan out → drop the used ticket → leave the station.
  *
  * It knows nothing about 3D or input. The walk controller reports what the
  * passenger did (bought, scanned, stepped aboard…) and reads back the stage
@@ -12,6 +13,9 @@
 
 export type TripStage =
   | "buy-ticket"
+  | "drop-bag"
+  | "security"
+  | "collect-bag"
   | "enter-gate"
   | "to-platform"
   | "board"
@@ -23,7 +27,7 @@ export type TripStage =
   | "done";
 
 /** Where the passenger should head next (the scene puts a marker there). */
-export type TripTarget = "counter" | "entry-gate" | "platform" | "train" | "none" | "exit-gate" | "ticket-box" | "street";
+export type TripTarget = "counter" | "bag-drop" | "security" | "bag-collect" | "entry-gate" | "platform" | "train" | "none" | "exit-gate" | "ticket-box" | "street";
 
 export interface TripOptions {
   /** The origin station can be walked through (concourse, gates, platform). */
@@ -33,9 +37,9 @@ export interface TripOptions {
   rideStarted?: boolean;
 }
 
-export type ScanResult = "ok" | "no-ticket" | "already-scanned" | "not-here";
+export type ScanResult = "ok" | "no-ticket" | "not-cleared" | "already-scanned" | "not-here";
 
-const ORDER: TripStage[] = ["buy-ticket", "enter-gate", "to-platform", "board", "riding", "alight", "exit-gate", "drop-ticket", "leave-station", "done"];
+const ORDER: TripStage[] = ["buy-ticket", "drop-bag", "security", "collect-bag", "enter-gate", "to-platform", "board", "riding", "alight", "exit-gate", "drop-ticket", "leave-station", "done"];
 
 export class PassengerTrip {
   stage: TripStage;
@@ -79,12 +83,34 @@ export class PassengerTrip {
   buyTicket(): boolean {
     if (this.stage !== "buy-ticket") return false;
     this.hasTicket = true;
+    this.stage = "drop-bag";
+    return true;
+  }
+
+  /** The bag is on the X-ray belt. */
+  dropBag(): boolean {
+    if (this.stage !== "drop-bag") return false;
+    this.stage = "security";
+    return true;
+  }
+
+  /** The guard has finished the body scan: the way to the bag and the gates opens. */
+  clearSecurity(): boolean {
+    if (this.stage !== "security") return false;
+    this.stage = "collect-bag";
+    return true;
+  }
+
+  /** The bag is back in hand, at the far end of the belt. */
+  collectBag(): boolean {
+    if (this.stage !== "collect-bag") return false;
     this.stage = "enter-gate";
     return true;
   }
 
   scanEntry(): ScanResult {
     if (this.stage === "buy-ticket") return "no-ticket";
+    if (this.stage === "drop-bag" || this.stage === "security" || this.stage === "collect-bag") return "not-cleared";
     if (this.stage !== "enter-gate") return this.reached("alight") ? "not-here" : "already-scanned";
     this.stage = "to-platform";
     return "ok";
@@ -144,6 +170,12 @@ export class PassengerTrip {
     switch (this.stage) {
       case "buy-ticket":
         return "counter";
+      case "drop-bag":
+        return "bag-drop";
+      case "security":
+        return "security";
+      case "collect-bag":
+        return "bag-collect";
       case "enter-gate":
         return "entry-gate";
       case "to-platform":
@@ -167,6 +199,12 @@ export function tripObjective(stage: TripStage, names: { from: string; to: strin
   switch (stage) {
     case "buy-ticket":
       return `Buy a ticket to ${names.to} at the counter`;
+    case "drop-bag":
+      return "Put your bag on the X-ray belt";
+    case "security":
+      return "Go through a security lane: men's or women's";
+    case "collect-bag":
+      return "Collect your bag at the end of the belt";
     case "enter-gate":
       return "Scan your ticket at an entry gate";
     case "to-platform":

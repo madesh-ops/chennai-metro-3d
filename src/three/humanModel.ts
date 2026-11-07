@@ -33,7 +33,8 @@ import { pick, type Rng } from "../utils/random.ts";
  */
 
 export type Outfit = "shirt" | "tshirt" | "veshti" | "saree" | "kurta";
-export type Pose = "stand" | "strap" | "phone" | "sit";
+/** "guard" stands with no right arm: the security guard's arm is its own moving part (concourseModel.ts). */
+export type Pose = "stand" | "strap" | "phone" | "sit" | "guard";
 export type Hair = "short" | "long" | "bun";
 /** "far" is for crowds seen from a distance (see CrowdLod): fewer segments, and no parts too small to see. */
 export type Detail = "high" | "low" | "far";
@@ -255,6 +256,7 @@ function buildTemplate({ outfit, pose, hair, jasmine, detail = "high" }: HumanSp
   };
   for (const s of [-1, 1]) {
     const S = V(s * (sh - 0.02), shY - 0.02, 0);
+    if (pose === "guard" && s > 0) continue;
     if (pose === "strap" && s > 0) {
       // Right hand up on the overhead strap.
       // Holding the overhead rail (about 1.8 m above the floor).

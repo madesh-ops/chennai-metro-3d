@@ -1,7 +1,7 @@
-import { BoxGeometry, BufferAttribute, type BufferGeometry, Color, Matrix4, PlaneGeometry, Quaternion, Vector3 } from "three";
+import { BoxGeometry, BufferAttribute, type BufferGeometry, CapsuleGeometry, Color, Matrix4, PlaneGeometry, Quaternion, Vector3 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { CONCOURSE, type ConcoursePlan } from "./walkPlan.ts";
-import { humanTemplate, paintHuman, pickColours, pickHair, pickOutfit, type Pose } from "./humanModel.ts";
+import { humanTemplate, paintHuman, pickColours, pickHair, pickOutfit, type HumanSpec, type Pose } from "./humanModel.ts";
 import { mulberry32 } from "../utils/random.ts";
 
 /**
@@ -22,9 +22,9 @@ export interface ConcourseGeometry {
 }
 
 /** Cells of the sign atlas: two columns by four rows of 4:1 boards. */
-export const SIGN = { tickets: 0, entry: 1, exit: 2, platform1: 3, platform2: 4, wayOut: 5, usedTickets: 6 } as const;
+export const SIGN = { tickets: 0, entry: 1, exit: 2, platform1: 3, platform2: 4, wayOut: 5, usedTickets: 6, security: 7, men: 8, women: 9, bags: 10 } as const;
 export const SIGN_COLS = 2;
-export const SIGN_ROWS = 4;
+export const SIGN_ROWS = 6;
 
 const COLOUR = {
   tile: "#8f959c",
@@ -44,6 +44,17 @@ const COLOUR = {
   stop: "#ff453a",
   lamp: "#fff6e6",
 };
+
+/** Security uniform. The staff in each lane match their own arm (buildGuardArm). */
+const UNIFORM = { top: "#3b4a5c", bottom: "#1f2a36" };
+export const GUARD_SKIN = ["#8d5524", "#a0673a"];
+const OPERATOR_SKIN = "#6b4226";
+/** The right shoulder of the staff in each lane, in person-local space (+z forward; the arm swings about it). */
+export const GUARD_SHOULDER = [
+  { x: 0.17, y: 1.38, z: 0 },
+  { x: 0.145, y: 1.38, z: 0 },
+];
+export const CURTAIN = "#2e8b57";
 
 const tint = new Color();
 
@@ -230,6 +241,85 @@ export function buildConcourse(plan: ConcoursePlan, lineColour: string): Concour
   board(SIGN.entry, C.island.x0 - 0.75, F + 2.55, 0, 3.2, "-x");
   board(SIGN.exit, C.island.x1 - 0.75, F + 2.55, 0, 3.2, "-x");
 
+  // Security check: a detector in each lane, the X-ray machine and its belt, the women's enclosure, rails and signs.
+  {
+    const S = C.security;
+    const fx = S.frameX;
+    const top = F + S.frameHeight;
+    const [men, women] = S.lanes;
+    for (const { frameZ } of S.lanes) {
+      for (const s of [-1, 1]) {
+        const inner = frameZ + s * S.frameHalf;
+        const outer = frameZ + s * (S.frameHalf + 0.15);
+        solid.push(cbox(fx - 0.2, fx + 0.2, F, top, Math.min(inner, outer), Math.max(inner, outer), COLOUR.cabinet));
+        glow.push(cbox(fx - 0.21, fx - 0.2, F + 1.0, F + 1.9, frameZ + s * (S.frameHalf + 0.05) - 0.03, frameZ + s * (S.frameHalf + 0.05) + 0.03, COLOUR.go));
+      }
+      solid.push(cbox(fx - 0.2, fx + 0.2, top, top + 0.16, frameZ - S.frameHalf - 0.15, frameZ + S.frameHalf + 0.15, COLOUR.dark));
+    }
+    // Rails along the detector line, between the lanes, round the operator and on to the island.
+    railing(fx - 0.02, fx + 0.02, S.machine.z1, men.frameZ - S.frameHalf - 0.15);
+    railing(fx - 0.02, fx + 0.02, men.frameZ + S.frameHalf + 0.15, women.frameZ - S.frameHalf - 0.15);
+    railing(fx - 0.02, fx + 0.02, women.frameZ + S.frameHalf + 0.15, S.penHalf);
+    railing(fx, S.barrierX, men.z0 - 0.02, men.z0 + 0.02);
+    railing(fx, S.enclosure.x0, men.z1 - 0.02, men.z1 + 0.02);
+    railing(S.enclosure.x1, S.barrierX, men.z1 - 0.02, men.z1 + 0.02);
+    railing(S.barrierX - 0.02, S.barrierX + 0.02, S.belt.z1, men.z0);
+    railing(S.machine.x1, C.island.x0, -S.penHalf - 0.02, -S.penHalf + 0.02);
+    railing(fx, S.enclosure.x0, S.penHalf - 0.02, S.penHalf + 0.02);
+    railing(S.enclosure.x1, C.island.x0, S.penHalf - 0.02, S.penHalf + 0.02);
+
+    // The women's enclosure: closed on every side and roofed, so nothing inside can be seen.
+    // The curtains across its two doorways are WalkMode's, because they draw aside for the passenger.
+    {
+      const E = S.enclosure;
+      const h = F + E.height;
+      solid.push(cbox(E.x0, E.x1, F, h, women.z0 - 0.03, women.z0 + 0.03, CURTAIN));
+      solid.push(cbox(E.x0, E.x1, F, h, women.z1 - 0.03, women.z1 + 0.03, CURTAIN));
+      for (const x of [E.x0, E.x1]) {
+        solid.push(cbox(x - 0.03, x + 0.03, F, h, women.z0, women.frameZ - S.frameHalf, CURTAIN));
+        solid.push(cbox(x - 0.03, x + 0.03, F, h, women.frameZ + S.frameHalf, women.z1, CURTAIN));
+        solid.push(cbox(x - 0.04, x + 0.04, h, h + 0.05, women.z0 - 0.04, women.z1 + 0.04, COLOUR.steel));
+      }
+      for (const z of [women.z0, women.z1]) solid.push(cbox(E.x0 - 0.04, E.x1 + 0.04, h, h + 0.05, z - 0.04, z + 0.04, COLOUR.steel));
+      solid.push(cbox(E.x0 - 0.03, E.x1 + 0.03, h - 0.03, h + 0.02, women.z0 - 0.03, women.z1 + 0.03, CURTAIN));
+      glow.push(cbox(E.x0 + 0.4, E.x1 - 0.4, h - 0.045, h - 0.03, women.frameZ - 0.1, women.frameZ + 0.1, COLOUR.lamp));
+    }
+
+    // X-ray machine: a belt on legs through a housing with a dark tunnel at each end.
+    {
+      const B = S.belt;
+      const M = S.machine;
+      const y = F + B.top;
+      solid.push(cbox(B.x0, B.x1, y - 0.1, y - 0.015, B.z0, B.z1, COLOUR.steel));
+      solid.push(cbox(B.x0, B.x1, y - 0.015, y, B.z0 + 0.04, B.z1 - 0.04, COLOUR.dark));
+      for (const x of [B.x0 + 0.1, B.midLeg, B.x1 - 0.1]) for (const z of [B.z0 + 0.06, B.z1 - 0.06]) solid.push(cbox(x - 0.03, x + 0.03, F, y - 0.1, z - 0.03, z + 0.03, COLOUR.steel));
+      const open = y + M.tunnel;
+      solid.push(cbox(M.x0, M.x1, F, y - 0.1, M.z0, M.z1, COLOUR.office));
+      solid.push(cbox(M.x0, M.x1, open, F + M.height, M.z0, M.z1, COLOUR.office));
+      solid.push(cbox(M.x0, M.x1, y - 0.1, open, M.z0, B.z0, COLOUR.office));
+      solid.push(cbox(M.x0, M.x1, y - 0.1, open, B.z1, M.z1, COLOUR.office));
+      solid.push(cbox(M.x0 - 0.01, M.x0 + 0.01, open, open + 0.08, M.z0, M.z1, COLOUR.box));
+      solid.push(cbox(M.x1 - 0.01, M.x1 + 0.01, open, open + 0.08, M.z0, M.z1, COLOUR.box));
+      // Strip curtains that hide the tunnel.
+      for (const x of [M.x0, M.x1]) glass.push(pane(x - 0.01, x + 0.01, y, open, B.z0, B.z1));
+      // The operator's desk and the back of the monitor (the screen itself is WalkMode's).
+      const D = S.desk;
+      solid.push(cbox(D.x0, D.x1, F + D.height - 0.04, F + D.height, D.z0, D.z1, COLOUR.stone));
+      for (const x of [D.x0 + 0.06, D.x1 - 0.06]) solid.push(cbox(x - 0.03, x + 0.03, F, F + D.height - 0.04, D.z0 + 0.1, D.z1 - 0.1, COLOUR.steel));
+      const Mon = S.monitor;
+      solid.push(cbox(Mon.x - 0.03, Mon.x + 0.03, F + D.height, F + D.height + Mon.stand, Mon.z - 0.03, Mon.z + 0.03, COLOUR.dark));
+      const back = new BoxGeometry(Mon.width + 0.05, Mon.height + 0.05, 0.04).toNonIndexed();
+      back.rotateY(Math.PI / 4);
+      back.translate(Mon.x - 0.016, F + D.height + Mon.stand + Mon.height / 2, Mon.z - 0.016);
+      solid.push(coloured(back, COLOUR.dark));
+    }
+
+    board(SIGN.security, fx - 2.1, F + 2.65, 0, 2.4, "-x");
+    board(SIGN.men, fx - 0.5, F + 2.62, men.frameZ, 1.5, "-x");
+    board(SIGN.women, fx - 0.5, F + 2.62, women.frameZ, 1.5, "-x");
+    board(SIGN.bags, S.bagFrom, F + 2.45, S.belt.z0, 1.5, "-x");
+  }
+
   // Used-ticket box past the exit gates.
   {
     const B = C.ticketBox;
@@ -254,9 +344,44 @@ export function buildConcourse(plan: ConcoursePlan, lineColour: string): Concour
     };
     for (const z of C.office.windows) person(C.office.x0 + 1.0, F + 0.47, z, FACING_YAW["-x"], "sit");
     for (const [x, z, yaw] of C.bystanders) person(x, F, z, yaw, rng() < 0.5 ? "phone" : "stand", 0.95 + rng() * 0.1);
+    const staff = (spec: HumanSpec, skin: string, x: number, z: number, yaw: number) => {
+      const g = paintHuman(humanTemplate(spec), { skin, ...UNIFORM });
+      m.compose(new Vector3(x, F, z), q.setFromAxisAngle(up, yaw), one.setScalar(1));
+      solid.push(g.applyMatrix4(m));
+    };
+    // Staff in each lane, a man in the men's and a woman in the women's, facing across it; the right arm is drawn apart so it can move.
+    const [men, women] = C.security.lanes;
+    staff({ outfit: "shirt", pose: "guard", hair: "short" }, GUARD_SKIN[0], men.guard.x, men.guard.z, FACING_YAW["-z"]);
+    staff({ outfit: "kurta", pose: "guard", hair: "bun" }, GUARD_SKIN[1], women.guard.x, women.guard.z, FACING_YAW["-z"]);
+    // The X-ray operator at the monitor, and the guard who just stands at the exit.
+    staff({ outfit: "shirt", pose: "stand", hair: "short" }, OPERATOR_SKIN, C.security.operator.x, C.security.operator.z, FACING_YAW["-z"] - Math.PI / 4);
+    staff({ outfit: "shirt", pose: "stand", hair: "short" }, GUARD_SKIN[1], C.exitGuard.x, C.exitGuard.z, FACING_YAW["-x"]);
   }
 
   return { solid: merge(solid), glass: merge(glass), glow: merge(glow), signs: merge(signs) };
+}
+
+/** The guard's right arm and hand scanner, reaching along +z from the shoulder at the origin. */
+export function buildGuardArm(skin: string): BufferGeometry {
+  /** A rounded limb along +z, matching the people's own arms. */
+  const limb = (r: number, z0: number, z1: number, colour: string) => coloured(new CapsuleGeometry(r, z1 - z0, 3, 8).rotateX(Math.PI / 2).translate(0, 0, (z0 + z1) / 2), colour);
+  return merge([
+    limb(0.05, 0, 0.28, UNIFORM.top),
+    limb(0.04, 0.28, 0.55, UNIFORM.top),
+    limb(0.036, 0.57, 0.62, skin),
+    cbox(-0.018, 0.018, -0.018, 0.018, 0.62, 0.76, COLOUR.dark),
+    cbox(-0.012, 0.012, -0.05, 0.05, 0.76, 1.02, COLOUR.dark),
+    cbox(-0.013, 0.013, -0.015, 0.015, 0.99, 1.01, COLOUR.stop),
+  ]);
+}
+
+/** The passenger's backpack, standing on the belt at the origin. */
+export function buildBag(): BufferGeometry {
+  return merge([
+    cbox(-0.16, 0.16, 0, 0.42, -0.12, 0.12, "#7a2f3a"),
+    cbox(-0.12, 0.12, 0.04, 0.2, 0.12, 0.17, "#5a1e28"),
+    cbox(-0.05, 0.05, 0.42, 0.47, -0.02, 0.02, COLOUR.dark),
+  ]);
 }
 
 /** One escalator's treads as steps, from a step below the foot to the head: slid along the slope to make them run (WalkMode.tsx). */

@@ -761,7 +761,7 @@ export interface SignTerminus {
 export function makeConcourseSignAtlas(lineColour: string, platform1: SignTerminus, platform2: SignTerminus): Texture {
   const CW = 1024;
   const CH = 256;
-  const { c, ctx } = canvas(CW * 2, CH * 4);
+  const { c, ctx } = canvas(CW * 2, CH * 6);
   const f = fontFamilies();
   ctx.fillStyle = "#0d1724";
   ctx.fillRect(0, 0, c.width, c.height);
@@ -805,5 +805,44 @@ export function makeConcourseSignAtlas(lineColour: string, platform1: SignTermin
   cell(4, `PLATFORM 2 · ${platform2.name.toUpperCase()}`, towards(platform2), lineColour, "up");
   cell(5, "WAY OUT", "வெளியே செல்லும் வழி", "#f2b705");
   cell(6, "USED TICKETS", "பயன்படுத்திய சீட்டுகள்", "#f2b705", "down");
+  cell(7, "SECURITY CHECK", "பாதுகாப்பு சோதனை", "#2fd67b", "up");
+  cell(8, "MEN", "ஆண்கள்", "#3281c4");
+  cell(9, "WOMEN", "பெண்கள்", "#2e9e5b");
+  cell(10, "BAGS", "பைகள்", "#f2b705");
+  return finish(c, false);
+}
+
+/** The X-ray operator's screen: idle, or showing a bag and what is in it (an invented, harmless load). */
+export function makeXrayScreen(showBag: boolean): Texture {
+  const { c, ctx } = canvas(512, 340);
+  ctx.fillStyle = showBag ? "#e9eef2" : "#0b1a2b";
+  ctx.fillRect(0, 0, c.width, c.height);
+  if (!showBag) {
+    ctx.fillStyle = "#5f8fb8";
+    ctx.textAlign = "center";
+    ctx.font = "600 34px sans-serif";
+    ctx.fillText("X-RAY READY", 256, 180);
+    return finish(c, false);
+  }
+  const shape = (colour: string, draw: () => void) => {
+    ctx.fillStyle = colour;
+    ctx.globalAlpha = 0.72;
+    ctx.beginPath();
+    draw();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  };
+  // Organic matter shows orange, plastics green, metals blue, as on real screens.
+  shape("#e8a24a", () => ctx.roundRect(70, 60, 372, 230, 34));
+  shape("#f0c27a", () => ctx.roundRect(190, 28, 130, 44, 16));
+  shape("#2f6fc4", () => ctx.rect(110, 95, 190, 125));
+  shape("#1d4a8f", () => ctx.rect(122, 107, 166, 90));
+  shape("#3fae6a", () => ctx.roundRect(335, 90, 52, 165, 18));
+  shape("#2f6fc4", () => ctx.roundRect(120, 238, 86, 28, 12));
+  shape("#b9652a", () => ctx.roundRect(230, 232, 92, 40, 10));
+  ctx.fillStyle = "#16283c";
+  ctx.font = "600 20px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("BAG 0417", 16, 326);
   return finish(c, false);
 }
